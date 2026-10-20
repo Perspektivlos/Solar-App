@@ -1,0 +1,429 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Layers, 
+  Radio, 
+  FileText, 
+  ChevronRight
+} from 'lucide-react';
+import { 
+  SolarTelemetry, 
+  DeviceInventoryItem, 
+  NetworkHost, 
+  DiscoveredDevice, 
+  MqttTopicDoc, 
+  ApiDoc, 
+  ChangeLogEntry, 
+  MaintenanceEntry 
+} from './types';
+import { 
+  INITIAL_TELEMETRY, 
+  INITIAL_DEVICES, 
+  INITIAL_NETWORK_HOSTS, 
+  INITIAL_DISCOVERED_DEVICE, 
+  INITIAL_MQTT_TOPICS, 
+  INITIAL_API_DOCS, 
+  INITIAL_CHANGELOG, 
+  INITIAL_MAINTENANCE 
+} from './data/initialData';
+import { Navbar } from './components/Navbar';
+import { SciFiEnergyFlow } from './components/SciFiEnergyFlow';
+import { WhyDrawer } from './components/WhyDrawer';
+import { DeviceInventory } from './components/DeviceInventory';
+import { NetworkIpPlan } from './components/NetworkIpPlan';
+import { MqttApiDocs } from './components/MqttApiDocs';
+import { ControlAndScripts } from './components/ControlAndScripts';
+import { AuditAndMaintenance } from './components/AuditAndMaintenance';
+import { SystemReportGenerator } from './components/SystemReportGenerator';
+import { EnergyAnalytics } from './components/EnergyAnalytics';
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [telemetry, setTelemetry] = useState<SolarTelemetry>(INITIAL_TELEMETRY);
+  const [devices, setDevices] = useState<DeviceInventoryItem[]>(INITIAL_DEVICES);
+  const [hosts, setHosts] = useState<NetworkHost[]>(INITIAL_NETWORK_HOSTS);
+  const [discoveredDevice, setDiscoveredDevice] = useState<DiscoveredDevice | null>(INITIAL_DISCOVERED_DEVICE);
+  const [mqttTopics] = useState<MqttTopicDoc[]>(INITIAL_MQTT_TOPICS);
+  const [apiDocs] = useState<ApiDoc[]>(INITIAL_API_DOCS);
+  const [changeLog, setChangeLog] = useState<ChangeLogEntry[]>(INITIAL_CHANGELOG);
+  const [maintenanceLog, setMaintenanceLog] = useState<MaintenanceEntry[]>(INITIAL_MAINTENANCE);
+
+  const [isSimulating, setIsSimulating] = useState<boolean>(true);
+  const [whyDrawerOpen, setWhyDrawerOpen] = useState<boolean>(false);
+  const [whyMetric, setWhyMetric] = useState<'pv' | 'battery' | 'grid' | 'house'>('pv');
+  const [lastTickTime, setLastTickTime] = useState<string>('14:32:45');
+
+  // Live telemetry subtle ticker
+  useEffect(() => {
+    if (!isSimulating) return;
+
+    const interval = setInterval(() => {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('de-DE', { hour12: false });
+      setLastTickTime(timeStr);
+
+      setTelemetry(prev => {
+        // Minor realistic drift (±10 W for solar, trucki compensating)
+        const pvDrift = Math.floor(Math.random() * 21) - 10;
+        const newPvHoymiles = Math.max(800, Math.min(1450, prev.pvHoymilesWatts + pvDrift));
+        const newTotalPv = newPvHoymiles + prev.pvVictronMppt1Watts + prev.pvVictronMppt2Watts;
+        
+        // House load slight drift
+        const houseDrift = Math.floor(Math.random() * 15) - 7;
+        const newHouseTotal = Math.max(700, prev.houseTotalWatts + houseDrift);
+
+        // Trucki zero-export regulation (Sun-2000)
+        const neededFromBat = Math.max(0, newHouseTotal - (newTotalPv * 0.5));
+        const limitedBatWatts = Math.min(prev.truckiPowerLimitWatts, Math.round(neededFromBat));
+        const newGridWatts = Math.round(newHouseTotal - (newTotalPv * 0.5) - limitedBatWatts);
+
+        return {
+          ...prev,
+          pvHoymilesWatts: newPvHoymiles,
+          pvTotalWatts: newTotalPv,
+          houseTotalWatts: newHouseTotal,
+          truckiActualOutputWatts: limitedBatWatts,
+          batteryWatts: -limitedBatWatts,
+          gridTotalWatts: newGridWatts,
+          gridMode: newGridWatts >= 0 ? 'Bezug' : 'Einspeisung'
+        };
+      });
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [isSimulating]);
+
+  // Handle Accepting Discovered Device
+  const handleAcceptDiscoveredDevice = (dev: DiscoveredDevice) => {
+    // Add to Network Hosts
+    const newHost: NetworkHost = {
+      ip: dev.ip,
+      port: 80,
+      name: dev.suggestedName,
+      deviceCategory: dev.suggestedCategory,
+      services: dev.services,
+      status: 'Online',
+      latencyMs: 3.2,
+      mac: dev.mac
+    };
+    setHosts(prev => [...prev, newHost]);
+
+    // Add to Devices Inventory
+    const newDeviceItem: DeviceInventoryItem = {
+      id: `dev-${Date.now()}`,
+      name: dev.suggestedName,
+      category: dev.suggestedCategory,
+      vendor: 'Tasmota / ESP8266',
+      model: 'Smart Energy Plug',
+      ip: dev.ip,
+      mac: dev.mac,
+      hostname: dev.hostname,
+      status: 'online',
+      firmwareVersion: 'v13.4.0',
+      firmwareStatus: 'Aktuell',
+      lastChecked: 'Gerade eben',
+      hardwareSpecs: '16A Relay, CSE7766 Power Metering IC',
+      services: dev.services,
+      mqttTopics: [`tele/${dev.hostname}/SENSOR`],
+      apiEndpoints: [`http://${dev.ip}/cm?cmnd=Status`],
+      location: 'Hauswirtschaftsraum / Waschmaschine',
+      operatingLimits: [
+        { parameter: 'Max Last', value: '3680', unit: 'W', description: 'Schaltgrenze' }
+      ],
+      isIstZustand: true,
+      notes: 'Neu im Netzwerk erkannt und automatisch in die Anlagen-Dokumentation übernommen.'
+    };
+    setDevices(prev => [...prev, newDeviceItem]);
+
+    // Record in Changelog
+    const newChange: ChangeLogEntry = {
+      id: `chg-${Date.now()}`,
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      device: dev.suggestedName,
+      parameter: 'GERÄTESTOPOLOGIE',
+      oldValue: 'Nicht erfasst',
+      newValue: `Übernommen (${dev.ip})`,
+      source: 'Automatisch',
+      detectionType: 'automatisch',
+      userNotes: 'Auto-Discovery via ARP Scan & MQTT mDNS Announcement.'
+    };
+    setChangeLog(prev => [newChange, ...prev]);
+
+    setDiscoveredDevice(null);
+  };
+
+  const handleIgnoreDiscoveredDevice = () => {
+    setDiscoveredDevice(null);
+  };
+
+  const handleSimulateScan = () => {
+    // Create a new discovered device if none exists
+    if (!discoveredDevice) {
+      setDiscoveredDevice({
+        ip: '192.168.0.140',
+        mac: 'dc:4f:22:9a:71:04',
+        hostname: 'shelly-plus-1pm-garage.lan',
+        services: ['HTTP', 'MQTT', 'RPC WebSockets'],
+        timestamp: 'Vor 10 Sekunden erkannt',
+        suggestedName: 'Shelly Plus 1PM (Wallbox / Garage)',
+        suggestedCategory: 'Infrastruktur'
+      });
+    }
+  };
+
+  // Handle Limit Update (Trucki or Hoymiles)
+  const handleUpdateLimit = (type: 'trucki' | 'hoymiles', value: number) => {
+    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+    if (type === 'trucki') {
+      const oldVal = `${telemetry.truckiPowerLimitWatts} W`;
+      setTelemetry(prev => ({
+        ...prev,
+        truckiPowerLimitWatts: value
+      }));
+
+      // Add to Changelog (Section 10 mandate)
+      const chg: ChangeLogEntry = {
+        id: `chg-${Date.now()}`,
+        timestamp: nowStr,
+        device: 'Trucki / Sun 2000',
+        parameter: 'POWERLIMIT',
+        oldValue: oldVal,
+        newValue: `${value} W`,
+        source: 'Web-UI',
+        detectionType: 'automatisch',
+        userNotes: 'Manuelle Regleranpassung über Steuerzentrale.'
+      };
+      setChangeLog(prev => [chg, ...prev]);
+    } else {
+      const oldVal = `${telemetry.hoymilesLimitPercent} % (${telemetry.hoymilesLimitWatts} W)`;
+      const newWatts = Math.round(1500 * (value / 100));
+      setTelemetry(prev => ({
+        ...prev,
+        hoymilesLimitPercent: value,
+        hoymilesLimitWatts: newWatts
+      }));
+
+      const chg: ChangeLogEntry = {
+        id: `chg-${Date.now()}`,
+        timestamp: nowStr,
+        device: 'AhoyDTU / Hoymiles HM-1500',
+        parameter: 'ACTIVE_LIMIT_PERCENT',
+        oldValue: oldVal,
+        newValue: `${value} % (${newWatts} W)`,
+        source: 'API',
+        detectionType: 'automatisch',
+        userNotes: 'AhoyDTU /api/ctrl Limitierung aktualisiert.'
+      };
+      setChangeLog(prev => [chg, ...prev]);
+    }
+  };
+
+  const handleToggleZeroExport = () => {
+    setTelemetry(prev => ({
+      ...prev,
+      truckiZeroExportEnabled: !prev.truckiZeroExportEnabled
+    }));
+  };
+
+  const handleInspectNode = (node: 'pv' | 'battery' | 'grid' | 'house') => {
+    setWhyMetric(node);
+    setWhyDrawerOpen(true);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#070a11] text-slate-100 selection:bg-sky-500/30 selection:text-white relative">
+      {/* Subtle ambient lighting layer */}
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(56,189,248,0.06),rgba(0,0,0,0))] pointer-events-none" />
+      
+      {/* HUD Navigation */}
+      <Navbar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isSimulating={isSimulating}
+        setIsSimulating={setIsSimulating}
+        onOpenWhy={() => {
+          setWhyMetric('pv');
+          setWhyDrawerOpen(true);
+        }}
+        lastTickTime={lastTickTime}
+      />
+
+      {/* Main Content Area */}
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-6 relative z-10">
+        
+        {/* TAB 1: DASHBOARD (STEUERZENTRALE & ENERGIEFLUSS) */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6">
+            
+            {/* Sci-Fi Energy Flow Matrix */}
+            <SciFiEnergyFlow
+              telemetry={telemetry}
+              onInspectNode={handleInspectNode}
+              onOpenWhy={() => {
+                setWhyMetric('pv');
+                setWhyDrawerOpen(true);
+              }}
+            />
+
+            {/* Quick Navigation Cards into other Core Modules */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              
+              <div 
+                onClick={() => setActiveTab('devices')}
+                className="group cursor-pointer p-4 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all duration-200 shadow-sm"
+              >
+                <div className="flex items-center justify-between text-xs text-sky-400 font-medium mb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 text-sky-400" />
+                    Geräteinventar ({devices.length} Geräte)
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-300 group-hover:translate-x-0.5 transition-all" />
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Shelly Pro 3EM, Hoymiles HM-1500, Trucki Gateway, 2x Victron MPPT, Venus OS, Proxmox Node.
+                </p>
+              </div>
+
+              <div 
+                onClick={() => setActiveTab('mqtt-api')}
+                className="group cursor-pointer p-4 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all duration-200 shadow-sm"
+              >
+                <div className="flex items-center justify-between text-xs text-violet-400 font-medium mb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <Radio className="w-4 h-4 text-violet-400" />
+                    MQTT Topics & REST-APIs
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-300 group-hover:translate-x-0.5 transition-all" />
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Automatische Schema-Erkennung von venus/grid/shellypro/#, AhoyDTU & Trucki Payloads.
+                </p>
+              </div>
+
+              <div 
+                onClick={() => setActiveTab('report')}
+                className="group cursor-pointer p-4 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all duration-200 shadow-sm"
+              >
+                <div className="flex items-center justify-between text-xs text-emerald-400 font-medium mb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-emerald-400" />
+                    Anlagen-Zustandsbericht
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-300 group-hover:translate-x-0.5 transition-all" />
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Vollständige Systemdokumentation mit Versionsverlauf als PDF-Druck, Markdown oder JSON.
+                </p>
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
+        {/* TAB 2: ENERGIE & PHASEN */}
+        {activeTab === 'energy' && (
+          <EnergyAnalytics
+            telemetry={telemetry}
+            onOpenWhy={() => {
+              setWhyMetric('grid');
+              setWhyDrawerOpen(true);
+            }}
+          />
+        )}
+
+        {/* TAB 3: GERÄTEINVENTAR */}
+        {activeTab === 'devices' && (
+          <DeviceInventory
+            devices={devices}
+          />
+        )}
+
+        {/* TAB 4: NETZWERK & IP-PLAN */}
+        {activeTab === 'network' && (
+          <NetworkIpPlan
+            hosts={hosts}
+            discoveredDevice={discoveredDevice}
+            onAcceptDiscoveredDevice={handleAcceptDiscoveredDevice}
+            onIgnoreDiscoveredDevice={handleIgnoreDiscoveredDevice}
+            onSimulateScan={handleSimulateScan}
+          />
+        )}
+
+        {/* TAB 5: MQTT & APIs */}
+        {activeTab === 'mqtt-api' && (
+          <MqttApiDocs
+            mqttTopics={mqttTopics}
+            apiDocs={apiDocs}
+          />
+        )}
+
+        {/* TAB 6: STEUERUNG & INTEGRATIONEN */}
+        {activeTab === 'control' && (
+          <ControlAndScripts
+            telemetry={telemetry}
+            onUpdateLimit={handleUpdateLimit}
+            onToggleZeroExport={handleToggleZeroExport}
+            onNavigateToReport={() => setActiveTab('report')}
+          />
+        )}
+
+        {/* TAB 7: WARTUNG & CHANGELOG */}
+        {activeTab === 'maintenance' && (
+          <AuditAndMaintenance
+            changeLog={changeLog}
+            maintenanceLog={maintenanceLog}
+            onAddMaintenanceEntry={(newEntry) => {
+              const created: MaintenanceEntry = {
+                id: `mnt-${Date.now()}`,
+                ...newEntry
+              };
+              setMaintenanceLog(prev => [created, ...prev]);
+            }}
+          />
+        )}
+
+        {/* TAB 8: ANLAGENBERICHT */}
+        {activeTab === 'report' && (
+          <SystemReportGenerator
+            telemetry={telemetry}
+            devices={devices}
+            hosts={hosts}
+            mqttTopics={mqttTopics}
+            apiDocs={apiDocs}
+            changeLog={changeLog}
+            maintenanceLog={maintenanceLog}
+          />
+        )}
+
+      </main>
+
+      {/* "Warum?" & "Woher kommt dieser Wert?" Inspector Modal */}
+      <WhyDrawer
+        isOpen={whyDrawerOpen}
+        onClose={() => setWhyDrawerOpen(false)}
+        telemetry={telemetry}
+        initialMetric={whyMetric}
+      />
+
+      {/* Global Sci-Fi Status Footer */}
+      <footer className="w-full border-t border-slate-800 bg-slate-950/80 px-4 py-3 text-xs font-mono-code text-slate-500 mt-12">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-cyan-400 font-bold font-scifi">SOLAR-LOKAL-APP</span>
+            <span>•</span>
+            <span>Github: Perspektivlos/Solar-Lokal-App</span>
+            <span>•</span>
+            <span className="hidden sm:inline">Pfad: G:\QuellCode\Emergent\Solar-Lokal-App</span>
+          </div>
+
+          <div className="flex items-center gap-3 text-[11px]">
+            <span className="text-emerald-400">● 100% LOKAL & CLOUDFREI</span>
+            <span>PROXMOX LXC READY</span>
+          </div>
+        </div>
+      </footer>
+
+    </div>
+  );
+}

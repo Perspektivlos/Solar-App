@@ -1,0 +1,6 @@
+{
+  "name": "Solar-Lokal-App",
+  "description": "Lokales Solar- und Energiemanagementsystem mit Live-Steuerung, MQTT- und InfluxDB-Dokumentation, Proxmox-Infrastruktur und Hardware-Diagnose.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
