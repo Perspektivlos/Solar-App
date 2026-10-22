@@ -143,38 +143,49 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
   },
   {
     id: 'trucki-sun2000',
-    name: 'Trucki2Shelly Gateway & Sun 2000',
+    name: 'Trucki2Shelly Gateway & Lumentree SUN-2000G2',
     category: 'Batterie / AC-System',
     vendor: 'Trucki.eu / Lumentree',
-    model: 'Trucki 2 Shelly v1.08b + Sun-2000GTIL2-WAL',
+    model: 'T2SG v1.15 + SUN-2000G2-WAL (Modell H: 45-90V DC)',
     serialNumber: 'TRK-582910-A',
     ip: '192.168.0.102',
     mac: 'a4:cf:12:87:66:b4',
     hostname: 'trucki-gateway.lan',
     status: 'online',
-    firmwareVersion: 'v1.08b',
+    firmwareVersion: 'v1.15 (18.01.2026)',
     firmwareStatus: 'Aktuell',
     lastChecked: '2026-09-14 14:31:45',
-    hardwareSpecs: 'ESP8266 Steuerung, RS485 Interface zu Sun-2000 Inverter, 48V DC Input',
-    services: ['HTTP', 'MQTT', 'JSON REST Live'],
+    hardwareSpecs: 'ESP8266 Steuerung mit RS485-Interface zu Lumentree Inverter, DAC-Platine, 45V-90V DC Input (Startspannung 49V)',
+    services: ['HTTP Web-UI', 'MQTT (Großbuchstaben)', 'mDNS (trucki-gateway.local)', 'System Log (/log.txt)'],
     mqttTopics: [
-      'Trucki/status/power_limit',
-      'Trucki/status/actual_ac',
-      'Trucki/cmd/power_limit',
-      'Trucki/tele/LIVE'
+      'T2SG/ACDISPLAY',
+      'T2SG/ACSETPOINT',
+      'T2SG/VBAT',
+      'T2SG/VGRID',
+      'T2SG/METER',
+      'T2SG/TEMPERATURE',
+      'T2SG/STATE',
+      'T2SG/ZEPC',
+      'T2SG/ACSETPOINTOVR',
+      'T2SG/METEROVR',
+      'T2SG/ZEPCOVR',
+      'T2SG/REBOOTOVR'
     ],
     apiEndpoints: [
-      'http://192.168.0.102/jsonlive',
-      'http://192.168.0.102/setlimit?val=600'
+      'http://192.168.0.102/',
+      'http://192.168.0.102/log.txt',
+      'http://192.168.4.1 (Fallback AP)'
     ],
     location: 'Technikraum Keller / Batteriewand',
     operatingLimits: [
-      { parameter: 'Max Inverter Output', value: '1800', unit: 'W', description: 'Hard Limit Sun-2000' },
-      { parameter: 'Aktuelles Regellimit', value: '600', unit: 'W', description: 'Regelung auf Nulleinspeisung' },
-      { parameter: 'Cutoff Spannung', value: '46.0', unit: 'V', description: 'Tiefentladeschutz Not-Aus' }
+      { parameter: 'Max Inverter Output', value: '1800', unit: 'W', description: 'Hard Limit Sun-2000 (Begrenzung via MAXPOWEROVR möglich)' },
+      { parameter: 'VBat Cutoff (Abschaltung)', value: '48.0', unit: 'V', description: 'Tiefentladeschutz (3.00V/Zelle bei 16S LiFePO4)' },
+      { parameter: 'VBat Reboot (Wiederanlauf)', value: '52.0', unit: 'V', description: 'Wiederanlaufschwelle nach Unterspannung (3.25V/Zelle)' },
+      { parameter: 'Übertemperatur-Abschaltung', value: '75', unit: '°C', description: 'Automatischer Hardware-Schutzstop (Wiedereinschalten < 65°C)' },
+      { parameter: 'K-Faktor Kalibrierung', value: '985', unit: '—', description: 'Justierung RS485 Kennlinie (Referenzbereich 950-1050)' }
     ],
     isIstZustand: true,
-    notes: 'Speist dynamisch Strom aus dem 48V LiFePO4 Akku ein, um den Shelly-Netzbezug auf ~0W zu halten.'
+    notes: 'T2SG v1.15 regelt die Nulleinspeisung (ZEPC=1) über RS485 anhand der Shelly Pro 3EM Phasenwerte. Alle MQTT-Topics strikt in Großbuchstaben!'
   },
   {
     id: 'lifepo4-battery-bank',
@@ -512,27 +523,159 @@ export const INITIAL_MQTT_TOPICS: MqttTopicDoc[] = [
     ]
   },
   {
-    topic: 'Trucki/status/LIVE',
-    dataType: 'JSON Object',
+    topic: 'T2SG/ACDISPLAY',
+    dataType: 'Single Value [W]',
     source: 'Trucki2Shelly Gateway (192.168.0.102)',
-    frequency: '~1.0 s',
+    frequency: '~1.3 s',
     lastSeen: 'Gerade eben',
-    consumers: ['Solar-Lokal Core', 'InfluxDB'],
+    consumers: ['Solar-Lokal Core', 'InfluxDB solar.pv_power', 'Grafana'],
     samplePayload: {
-      power_limit: 600,
-      actual_power: 595,
-      target_shelly_p: 0,
-      mode: 'DYNAMIC_ZERO_EXPORT',
-      v_bat: 52.8,
-      status: 'OK',
-      throttle_reason: 'NONE'
+      topic: 'T2SG/ACDISPLAY',
+      value: 595,
+      unit: 'W'
     },
     fields: [
-      { field: 'power_limit', type: 'number', unit: 'W', example: 600, description: 'Aktuell eingestelltes Maximum des Inverters' },
-      { field: 'actual_power', type: 'number', unit: 'W', example: 595, description: 'Reale gemessene AC-Ausgangsleistung Sun-2000' },
-      { field: 'target_shelly_p', type: 'number', unit: 'W', example: 0, description: 'Sollwert für den Netzbezug (0W = Nullausgleich)' },
-      { field: 'mode', type: 'string', unit: '—', example: 'DYNAMIC_ZERO_EXPORT', description: 'Aktiver Regelmodus' },
-      { field: 'v_bat', type: 'number', unit: 'V', example: 52.8, description: 'Eingangsspannung von der 48V Batterie' }
+      { field: 'value', type: 'number', unit: 'W', example: 595, description: 'Vom Lumentree Inverter über RS485 gemeldete tatsächliche AC-Ausgangsleistung (Ist-Wert)' }
+    ]
+  },
+  {
+    topic: 'T2SG/ACSETPOINT',
+    dataType: 'Single Value [W]',
+    source: 'Trucki2Shelly Gateway (192.168.0.102)',
+    frequency: '~1.3 s',
+    lastSeen: 'Gerade eben',
+    consumers: ['Solar-Lokal Core', 'Regler-Audit'],
+    samplePayload: {
+      topic: 'T2SG/ACSETPOINT',
+      value: 600,
+      unit: 'W'
+    },
+    fields: [
+      { field: 'value', type: 'number', unit: 'W', example: 600, description: 'Aktuell vom T2SG errechneter oder per Override vorgegebener Inverter-Sollwert' }
+    ]
+  },
+  {
+    topic: 'T2SG/VBAT',
+    dataType: 'Single Value [V]',
+    source: 'Trucki2Shelly Gateway (192.168.0.102)',
+    frequency: '~1.3 s',
+    lastSeen: 'Gerade eben',
+    consumers: ['Solar-Lokal Core', 'Tiefentladeschutz', 'InfluxDB'],
+    samplePayload: {
+      topic: 'T2SG/VBAT',
+      value: 52.84,
+      unit: 'V'
+    },
+    fields: [
+      { field: 'value', type: 'number', unit: 'V', example: 52.84, description: 'Gemessene DC-Batteriespannung am Eingang des Lumentree Inverters (Cutoff 48V, Reboot 52V)' }
+    ]
+  },
+  {
+    topic: 'T2SG/METER',
+    dataType: 'Single Value [W]',
+    source: 'Trucki2Shelly Gateway (192.168.0.102)',
+    frequency: '~1.3 s',
+    lastSeen: 'Gerade eben',
+    consumers: ['ZEPC Regelschleife', 'Nulleinspeisungs-Monitor'],
+    samplePayload: {
+      topic: 'T2SG/METER',
+      value: 145,
+      unit: 'W'
+    },
+    fields: [
+      { field: 'value', type: 'number', unit: 'W', example: 145, description: 'Vom T2SG erfasster Zählerwert (Shelly Pro 3EM). Positiv = Netzbezug, Negativ = Netzeinspeisung' }
+    ]
+  },
+  {
+    topic: 'T2SG/ZEPC',
+    dataType: 'Numeric State [0-4]',
+    source: 'Trucki2Shelly Gateway (192.168.0.102)',
+    frequency: '~1.3 s',
+    lastSeen: 'Gerade eben',
+    consumers: ['Solar-Lokal Core', 'Status-HUD'],
+    samplePayload: {
+      topic: 'T2SG/ZEPC',
+      value: 1,
+      mode: 'Enabled'
+    },
+    fields: [
+      { field: 'value', type: 'number', unit: '—', example: 1, description: '0=Deaktiviert, 1=Aktiviert (Auto-Nulleinspeisung), 2=Manuell (Override), 3=MQTT Meter, 4=Linked Multi-Inverter' }
+    ]
+  },
+  {
+    topic: 'T2SG/TEMPERATURE',
+    dataType: 'Single Value [°C]',
+    source: 'Trucki2Shelly Gateway (192.168.0.102)',
+    frequency: '~1.3 s',
+    lastSeen: 'Gerade eben',
+    consumers: ['Temperatur-Wächter', 'Alarm-System'],
+    samplePayload: {
+      topic: 'T2SG/TEMPERATURE',
+      value: 39.2,
+      unit: '°C'
+    },
+    fields: [
+      { field: 'value', type: 'number', unit: '°C', example: 39.2, description: 'Inverter-Kühlkörpertemperatur. Achtung: Hardware-Abschaltung erfolgt ab 75 °C!' }
+    ]
+  },
+  {
+    topic: 'T2SG/ACSETPOINTOVR',
+    dataType: 'Command [W] (Write-Only)',
+    source: 'Solar-Lokal / MQTT Client -> T2SG',
+    frequency: 'Auf Befehl',
+    lastSeen: 'Vor 15 Min',
+    consumers: ['Trucki2Shelly Gateway'],
+    samplePayload: {
+      topic: 'T2SG/ACSETPOINTOVR',
+      payload: '350'
+    },
+    fields: [
+      { field: 'payload', type: 'string / number', unit: 'W', example: '350', description: 'Manuelle Vorgabe der Inverter-Leistung. Deaktiviert automatisch den ZEPC Regelkreis (Status wechselt auf 2)!' }
+    ]
+  },
+  {
+    topic: 'T2SG/METEROVR',
+    dataType: 'Command [W] (Write-Only)',
+    source: 'Solar-Lokal / MQTT Client -> T2SG',
+    frequency: 'Zyklisch ~500ms',
+    lastSeen: 'Vor 2s',
+    consumers: ['Trucki2Shelly Gateway ZEPC'],
+    samplePayload: {
+      topic: 'T2SG/METEROVR',
+      payload: '185'
+    },
+    fields: [
+      { field: 'payload', type: 'string / number', unit: 'W', example: '185', description: 'Ermöglicht Einspeisung externer Zählerwerte via MQTT (Meter-URL im Gateway muss leer sein). Reaktiviert ZEPC!' }
+    ]
+  },
+  {
+    topic: 'T2SG/ZEPCOVR',
+    dataType: 'Command [0|1] (Write-Only)',
+    source: 'Solar-Lokal / MQTT Client -> T2SG',
+    frequency: 'Auf Befehl',
+    lastSeen: 'Vor 1 Std',
+    consumers: ['Trucki2Shelly Gateway'],
+    samplePayload: {
+      topic: 'T2SG/ZEPCOVR',
+      payload: '1'
+    },
+    fields: [
+      { field: 'payload', type: 'string', unit: '—', example: '1', description: 'Reaktiviert die Nulleinspeisung (1 = Enable ZEPC, 0 = Disable ZEPC).' }
+    ]
+  },
+  {
+    topic: 'T2SG/REBOOTOVR',
+    dataType: 'Command String (Write-Only)',
+    source: 'Solar-Lokal / Wartung -> T2SG',
+    frequency: 'Manuell',
+    lastSeen: 'Nie',
+    consumers: ['Trucki2Shelly Gateway OS'],
+    samplePayload: {
+      topic: 'T2SG/REBOOTOVR',
+      payload: 'REBOOTOVR'
+    },
+    fields: [
+      { field: 'payload', type: 'string', unit: '—', example: 'REBOOTOVR', description: 'Senden des exakten Strings "REBOOTOVR" löst einen sauberen Neustart des T2SG Gateways aus.' }
     ]
   },
   {
@@ -565,23 +708,35 @@ export const INITIAL_MQTT_TOPICS: MqttTopicDoc[] = [
 
 export const INITIAL_API_DOCS: ApiDoc[] = [
   {
-    endpoint: '/jsonlive',
-    baseUrl: 'http://trucki.local (192.168.0.102)',
+    endpoint: '/',
+    baseUrl: 'http://trucki-gateway.lan (192.168.0.102)',
     method: 'GET',
-    responseFormat: 'application/json',
+    responseFormat: 'text/html',
     lastSuccessfulAccess: 'Vor 1.4s',
-    responseTimeMs: 14,
+    responseTimeMs: 12,
     status: '200 OK',
-    description: 'Echtzeit-Telemetrie und Reglerstatus des Trucki2Shelly Gateways für den Sun-2000 Inverter.',
-    usedFields: ['power_limit', 'actual_power', 'v_bat', 'mode', 'status'],
+    description: 'Offizielle Web-Oberfläche des T2SG v1.15 mit Live-Anzeige aller Messwerte, WLAN- & MQTT-Konfiguration und K-Faktor Kalibrierung.',
+    usedFields: ['ACDISPLAY', 'ACSETPOINT', 'VBAT', 'VGRID', 'METER', 'TEMPERATURE', 'STATE', 'ZEPC'],
     exampleResponse: {
-      power_limit: 600,
-      actual_power: 595,
-      v_bat: 52.8,
-      mode: 'ZERO_EXPORT',
-      target: 0,
-      status: 'OK',
-      uptime_s: 483920
+      status: 'HTTP/1.1 200 OK',
+      title: 'Trucki2Shelly Gateway v1.15',
+      uptime: '14d 06:22:15',
+      zepc: 'Enabled (1)',
+      inverter: 'SUN-2000G2 RS485 Connected'
+    }
+  },
+  {
+    endpoint: '/log.txt',
+    baseUrl: 'http://trucki-gateway.lan (192.168.0.102)',
+    method: 'GET',
+    responseFormat: 'text/plain',
+    lastSuccessfulAccess: 'Vor 2.1s',
+    responseTimeMs: 15,
+    status: '200 OK',
+    description: 'Zyklischer Ringspeicher des internen System-Logs laut Handbuch (v1.15). Ideal für Diagnose von Zähler-Abfragefehlern und RS485-Verbindungsstatus.',
+    usedFields: ['Timestamp', 'Log-Level', 'RS485 RX/TX', 'MQTT State', 'Meter Read Latency'],
+    exampleResponse: {
+      logSnippet: '[INFO] 14:31:40 WiFi connected RSSI: -54 dBm\n[INFO] 14:31:41 MQTT connected to 192.168.0.201:1883\n[METER] 14:31:42 Shelly read OK: 145W (latency 18ms)\n[RS485] 14:31:43 DAC: 21840, Inverter ACDisplay: 595W, Temp: 39C\n[ZEPC] 14:31:44 Status=1 Target=0W Deficit=145W NewSetpoint=600W'
     }
   },
   {

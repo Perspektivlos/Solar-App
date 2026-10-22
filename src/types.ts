@@ -205,3 +205,29 @@ export interface AutomationRule {
   isActive: boolean;
   lastTriggered?: string;
 }
+
+export interface MqttLogMessage {
+  id: string;
+  timestamp: string;
+  timeMs: number;
+  topic: string;
+  payload: any;
+  rawPayload: string;
+  qos: 0 | 1 | 2;
+  retain: boolean;
+  direction: 'in' | 'out';
+  source: string;
+  sizeBytes: number;
+}
+
+export interface MqttPublishPreset {
+  id: string;
+  name: string;
+  targetDevice: string;
+  topic: string;
+  payload: string;
+  qos: 0 | 1 | 2;
+  retain: boolean;
+  description: string;
+}
+

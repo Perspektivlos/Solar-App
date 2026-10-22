@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementierungsplan mit visuellen Bildvorschauen fuer Option 1 (synchronisiertes Multilinien-Diagramm) und Option 2 (vier getrennte Diagramme) sowie die kWh-Energiebilanz mit 24h/12h/6h/3h Zeitfilterung via Recharts.",
-  "updatedAt":  "2026-10-20T15:23:35.867253538Z",
+  "summary":  "Konzeption und Implementierungsplan für das 'Live MQTT-Sniffer & Diagnose-Terminal' als neuer Unterbereich innerhalb von 'MQTT & APIs'. Enthält Echtzeit-Datenstrom-Visualisierung, Wildcard-Filter, Quick-Filter-Chips, Message-Inspector und ein interaktives Publish-Terminal für Steuerbefehle an Trucki, VenusOS und AhoyDTU.",
+  "updatedAt":  "2026-10-21T21:59:50.051808009Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

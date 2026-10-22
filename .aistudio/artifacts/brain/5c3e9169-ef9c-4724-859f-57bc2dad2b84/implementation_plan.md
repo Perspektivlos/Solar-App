@@ -1,68 +1,79 @@
-# Implementierungsplan: Recharts-Diagramme & kWh-Energiebilanz
+# Implementierungsplan: Live MQTT-Sniffer & Diagnose-Terminal
 
-Dieser Plan stellt die beiden Architektur- und Designoptionen für die Integration der **Recharts-Bibliothek** auf der Energie-Seite vor, inklusive interaktiver Zeitfenster (24h, 12h, 6h, 3h), Linien für **PV-Erzeugung**, **Akku-Nutzung**, **Netz** und **Hausverbrauch** sowie einer umfassenden **kWh-Energiebilanz**.
-
----
-
-## Visuelle Vorschau: Option 1 vs. Option 2
-
-### Option 1: Synchronisiertes Multilinien-Diagramm mit Kanal-Toggles (Empfohlen)
-
-Ein großes, zentrales Dashboard-Diagramm, auf dem alle 4 Energieflüsse in einer gemeinsamen zeitlichen Achse liegen. Einzelne Kurven können per Klick in der Legende ein- oder ausgeblendet werden.
-
-![Option 1 - Synchronisiertes Multilinien-Diagramm](/src/assets/images/preview_option1_unified_1792509784011.jpg)
-
-**Vorteile von Option 1:**
-- **Direkter Bezug auf einen Blick:** Man erkennt sofort das Zusammenspiel zwischen PV-Ertrag, Akku-Ladung/Entladung, Netzbezug und Hausverbrauch (z. B. wenn die Sonne sinkt und der Akku nahtlos übernimmt).
-- **Kanalfilter:** Jede Kurve (PV, Akku, Netz, Haus) kann über einen Klickfilter isoliert oder verglichen werden.
-- **Kompakt & übersichtlich:** Spart vertikalen Platz auf Tablets und Monitoren.
+Integration eines vollwertigen Diagnose-Terminals und Live-Sniffers direkt in den Tab **MQTT & APIs** als dritter Unterbereich neben dem Schema-Parser und den REST-APIs.
 
 ---
 
-### Option 2: Vier getrennte Einzel-Diagramme im Grid
-
-Vier separate, spezialisierte Diagramm-Kacheln für jeden Kanal, jeweils mit eigener Skalierung und Kurvenverlauf.
-
-![Option 2 - Getrennte Einzeldiagramme](/src/assets/images/preview_option2_separated_1792509797668.jpg)
-
-**Vorteile von Option 2:**
-- **Keine Kurvenüberlagerung:** Jede Kennzahl hat ihre eigene Nulllinie und individuelle Y-Achsenskalierung (besonders nützlich bei stark unterschiedlichen Werten).
-- **Fokus pro Gerät/Domäne:** Direkte Zuweisung zu PV (Hoymiles/Victron), Akku (Seplos BMS/Trucki), Netz (Shelly Pro 3EM) und Hausverbrauch.
+## 1. Übersicht & Zielsetzung
+Das Diagnose-Terminal ermöglicht die Live-Überwachung und interaktive Steuerung des gesamten lokalen MQTT-Nachrichtenverkehrs (Mosquitto Port 1883) zwischen allen Komponenten:
+- **Hoymiles HM-1500 (OpenDTU / AhoyDTU)** (`venus/pv/ahoydtu/#`)
+- **Shelly Pro 3EM** (`venus/grid/shellypro/#`)
+- **Trucki RS485 AC-Gateway** (`Trucki/#`)
+- **Victron Venus OS D-Bus MQTT-Bridge** (`N/b827eb79321c/#`, `R/b827eb79321c/keepalive`)
 
 ---
 
-## Kernfunktionen beider Varianten
+## 2. Geplante Komponenten & Architektur
 
-### 1. Interaktiver Zeitbereichs-Wahlschalter
-- **Zeitfenster:** `24h` · `12h` · `6h` · `3h`
-- **Granularität:**
-  - `24h`: 15-Minuten-Intervalle (96 Datenpunkte für den gesamten Tag)
-  - `12h`: 10-Minuten-Intervalle
-  - `6h`: 5-Minuten-Intervalle
-  - `3h`: 2-Minuten-Intervalle für hochauflösende Echtzeit-Detailansicht
-- Glatte, interpolierte Kurven mit dezentem Leuchtverlauf (Glow) passend zum ultra-modernen Design ohne grelles Neon.
+### 2.1 Neuer Unterbereich in `MqttApiDocs.tsx`
+- Erweiterung des Sub-Tab-Headers von 2 auf 3 Reiter:
+  1. `MQTT Schema Parser` (Vorhandene Dokumentation & Schema-Typisierung)
+  2. `Lokale REST-APIs` (Vorhandene REST-Endpunkte & Swagger-like Tests)
+  3. **`Live Sniffer & Terminal` (NEU: Echtzeit-Diagnose & Befehlskonsole)**
 
-### 2. Detaillierte kWh-Energiebilanz
-Unter dem Diagrammbereich wird eine moderne Bilanzleiste implementiert:
-- **Solar-Ertrag Heute (kWh):** Summe aus Hoymiles HM-1500 + Victron SmartSolar MPPTs
-- **Netzbezug Heute (kWh):** Reale Zählerwerte des Shelly Pro 3EM
-- **Netzeinspeisung Heute (kWh):** Eingespeiste Überschussenergie
-- **Hausverbrauch Gesamt (kWh):** Berechnete Gesamtlast (`PV + Akku-Entladung + Netzbezug - Einspeisung - Akku-Ladung`)
-- **Autarkiegrad (%):** Dynamischer Ring-/Kreisindikator: `(Eigenverbrauch / Gesamtverbrauch) * 100`
+### 2.2 Live MQTT-Sniffer (Echtzeit-Monitor)
+- **Nachrichten-Stream**:
+  - Live einlaufende Nachrichten mit Timestamp (`HH:mm:ss.SSS`), Topic-Pfad, Payload, QoS (0, 1) und Retain-Flag.
+  - Dynamischer Live-Ticker (1–2 Sekunden Takt), der reale Messwerte (Shelly Leistung je Phase, Hoymiles Kanalwerte, Trucki Regelsollwerte, Victron MPPT Yields) einspeist.
+- **Steuerung & Ergonomie**:
+  - `Pause / Fortsetzen`: Hält den Stream an, um spezifische Pakete in Ruhe zu untersuchen.
+  - `Autoscroll-Toggle`: Automatisches Weiterscrollen an den neuesten Eintrag oder Halten der Position.
+  - `Log leeren`: Setzt den aktuellen Puffer zurück.
+  - `Durchsatz-Anzeige`: Live-Metriken zu Nachrichten/Sekunde und Datenrate (z. B. `4.8 msg/s`, `1.6 KB/s`).
+- **Filter- & Suchleiste**:
+  - Wildcard-Suche nach MQTT-Topic (unterstützt `#` und `+` Wildcards sowie Volltextsuche).
+  - Quick-Filter-Chips:
+    - `Alle Topics`
+    - `Shelly Pro 3EM` (`venus/grid/#`)
+    - `AhoyDTU / Hoymiles` (`venus/pv/#`)
+    - `Trucki Gateway` (`Trucki/#`)
+    - `Victron VenusOS` (`N/b827eb79321c/#`)
+  - Payload-Suchfeld (z. B. nach Feldern wie `"P_AC"` oder `"soc"`).
+
+### 2.3 Interaktives Publish-Terminal (Befehlssender)
+- Direkte Eingabemaske zum Publishen von MQTT-Nachrichten an den lokalen Broker:
+  - **Topic-Eingabe** mit Syntax-Highlighting.
+  - **Payload-Editor** (JSON mit Syntaxprüfung oder Plain-String).
+  - **QoS & Retain-Auswahl**.
+- **Schnellbefehl-Presets (Quick-Actions)** für praxistypische Solar-Steuerungen:
+  1. **Trucki Nulleinspeise-Sollwert**: `Trucki/RS485/rx/power_setpoint` mit Payload `{"setpoint_watts": 350}`
+  2. **Hoymiles Leistungslimitierung (AhoyDTU)**: `venus/pv/ahoydtu/Hoymiles1500/cmd/limit_nonpersistent_relative` mit `{"limit": 75}`
+  3. **VenusOS Keepalive-Ping**: `R/b827eb79321c/keepalive` mit Payload `""` (verlängert das Daten-Abo um 60 s)
+  4. **Shelly Schaltausgang (Switch)**: `venus/grid/shellypro/rpc` mit `{"id": 1, "method": "Switch.Set", "params": {"id": 0, "on": true}}`
+- **Feedback & Feedback-Historie**:
+  - Visuelle Bestätigung ("Message ACK - Sent to 127.0.0.1:1883 in 4.2ms").
+  - Gesendete Nachrichten erscheinen farblich hervorgehoben (Outbound / TX) direkt im Sniffer-Log.
+
+### 2.4 Payload-Inspector Drawer / Detailansicht
+- Beim Klick auf eine empfangene oder gesendete Nachricht öffnet sich der strukturierte Payload-Viewer:
+  - Formatierte JSON-Baumansicht mit Copy-Button.
+  - Raw String / Hex Ansicht.
+  - Typ-Erkennung der Einheiten (W, V, A, %, kWh, °C).
 
 ---
 
-## Technische Umsetzungsschritte
+## 3. Technische Umsetzungsschritte
 
-1. **Paketinstallation:**
-   - Installation von `recharts` via `install_applet_package`.
-2. **Datenmodell & Historien-Generator (`src/utils/energyHistory.ts`):**
-   - Berechnung realistischer Tageskurven für 24h/12h/6h/3h basierend auf den aktuellen Live-Telemetriewerten.
-   - Synchronisierte Fortschreibung bei laufender Simulation.
-3. **Komponenten-Erweiterung (`src/components/EnergyAnalytics.tsx`):**
-   - Einbettung des Recharts `ResponsiveContainer`, `LineChart`, `AreaChart` (mit Gradienten), `Tooltip` mit individuellem Glasmorphismus-Styling und `Legend`.
-   - Zeitbereichs-Umschalter (24h, 12h, 6h, 3h).
-   - kWh-Energiebilanz-Kacheln mit sauberen Typografien und Tabellenziffern (`tabular-nums`).
-4. **Verifikation & Qualitätssicherung:**
-   - Build- & Typüberprüfung mit `compile_applet` und `lint_applet`.
-   - Responsives Verhalten auf Desktop und mobilen Ansichten.
+1. **Typen in `src/types.ts` erweitern**:
+   - `MqttLogMessage`: `id`, `timestamp`, `topic`, `payload`, `rawPayload`, `qos`, `retain`, `direction` ('in' | 'out'), `source`.
+   - `MqttPublishPreset`: `name`, `topic`, `payload`, `description`.
+2. **Neues Modul `src/components/MqttLiveSniffer.tsx` erstellen**:
+   - Kompakte, hochmoderne Terminal-Optik passend zum Scifi-/Dark-Architectural-Design.
+   - Pufferung von bis zu 100 Nachrichten mit Ring-Buffer-Verhalten.
+   - Filter-Engine mit Wildcard-Unterstützung.
+3. **Integration in `src/components/MqttApiDocs.tsx`**:
+   - Einbindung des 3. Tabs ("Live Sniffer & Terminal").
+   - Nahtlose Weitergabe von Beispieldaten und Vernetzung mit den dokumentierten Schemas.
+4. **Verifikation & Test**:
+   - TypeScript-Kompilierung (`compile_applet`) und Linting.
+   - Überprüfung aller Presets, Filterfunktionen und Reaktionszeiten.

@@ -296,7 +296,7 @@ export default function App() {
                   <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-300 group-hover:translate-x-0.5 transition-all" />
                 </div>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Automatische Schema-Erkennung von venus/grid/shellypro/#, AhoyDTU & Trucki Payloads.
+                  Automatische Schema-Erkennung, Live-Sniffer (1883) & Publish-Terminal für Trucki, VenusOS & AhoyDTU.
                 </p>
               </div>
 
