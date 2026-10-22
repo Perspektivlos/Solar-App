@@ -1,6 +1,0 @@
-{
-  "summary":  "Konzeption und Implementierungsplan für das 'Live MQTT-Sniffer & Diagnose-Terminal' als neuer Unterbereich innerhalb von 'MQTT & APIs'. Enthält Echtzeit-Datenstrom-Visualisierung, Wildcard-Filter, Quick-Filter-Chips, Message-Inspector und ein interaktives Publish-Terminal für Steuerbefehle an Trucki, VenusOS und AhoyDTU.",
-  "updatedAt":  "2026-10-21T21:59:50.051808009Z",
-  "requestFeedback":  true,
-  "userFacing":  true
-}
