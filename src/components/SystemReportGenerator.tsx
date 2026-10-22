@@ -347,11 +347,14 @@ user ahoy_dtu
 topic write venus/pv/ahoydtu/#
 topic read venus/pv/ahoydtu/+/cmd/#
 
-# 3. Trucki 2 Shelly Gateway (Liest Shelly Grid & schreibt Trucki Status)
+# 3. Trucki 2 Shelly Gateway (Liest Shelly Grid & schreibt T2SG Status)
 user trucki_gateway
 topic read venus/grid/shellypro/#
-topic write Trucki/#
-topic read Trucki/cmd/#
+topic write T2SG/#
+topic read T2SG/ACSETPOINTOVR
+topic read T2SG/METEROVR
+topic read T2SG/ZEPCOVR
+topic read T2SG/REBOOTOVR
 
 # 4. Venus OS (Victron MPPTs & JK-BMS)
 user victron_venus
@@ -362,7 +365,7 @@ topic read R/d4aa81/#
 # 5. Solar-Lokal-App Core (Lesezugriff auf alles, Schreibzugriff auf Steuerung)
 user solar_app
 topic read #
-topic write Trucki/cmd/#
+topic write T2SG/#
 topic write venus/pv/ahoydtu/+/cmd/#
 `;
 
@@ -382,7 +385,7 @@ topic write venus/pv/ahoydtu/+/cmd/#
 
 ## 1. Anlagenübersicht & Live-Status
 - **PV Erzeugung:** ${telemetry.pvTotalWatts} W (Hoymiles: ${telemetry.pvHoymilesWatts}W, 2x Victron MPPT: ${telemetry.pvVictronMppt1Watts + telemetry.pvVictronMppt2Watts}W)
-- **Batteriespeicher:** 48V LiFePO4 (6x Power Queen 100Ah = 15.36 kWh) | SoC: ${telemetry.batterySocPercent}% | Leistung: ${telemetry.batteryWatts} W
+- **Batteriespeicher:** 48V (51.2V) LiFePO4 Speicher (6x Power Queen 25.6V 100Ah in 3P2S = 15.36 kWh) | SoC: ${telemetry.batterySocPercent}% | Leistung: ${telemetry.batteryWatts} W
 - **Netzbezug / Einspeisung (Shelly Pro 3EM):** ${telemetry.gridTotalWatts} W (saldiert über L1/L2/L3)
 - **Hausverbrauch:** ${telemetry.houseTotalWatts} W | **Autarkiegrad:** ${telemetry.autarkyPercent}%
 

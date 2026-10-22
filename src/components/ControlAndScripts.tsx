@@ -769,6 +769,36 @@ topic write venus/pv/ahoydtu/+/cmd/#
                 <span>1800 W (Max Dauerlast)</span>
               </div>
             </div>
+
+            {/* Live Gateway Connection & mDNS Info */}
+            <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-900/60 border border-sky-500/20 text-xs font-mono-code">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-slate-400">Gateway-Adresse:</span>
+                <span className="text-cyan-300 font-bold">http://trucki.local</span>
+                <span className="text-slate-500">(192.168.0.102 • Latenz 2.1ms)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href="http://trucki.local"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/30 text-[11px] transition-colors"
+                >
+                  <span>Web-UI öffnen</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+                <a
+                  href="http://trucki.local/log.txt"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] transition-colors"
+                >
+                  <span>Log (/log.txt)</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
           </div>
 
           {/* Hoymiles Inverter Limit Control */}

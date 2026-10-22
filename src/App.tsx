@@ -3,7 +3,8 @@ import {
   Layers, 
   Radio, 
   FileText, 
-  ChevronRight
+  ChevronRight,
+  Smartphone
 } from 'lucide-react';
 import { 
   SolarTelemetry, 
@@ -35,8 +36,14 @@ import { ControlAndScripts } from './components/ControlAndScripts';
 import { AuditAndMaintenance } from './components/AuditAndMaintenance';
 import { SystemReportGenerator } from './components/SystemReportGenerator';
 import { EnergyAnalytics } from './components/EnergyAnalytics';
+import { PWASetupInfoModal } from './components/PWASetupInfoModal';
+import { OfflineIndicator } from './components/OfflineIndicator';
+import { useDeviceDetection } from './hooks/useDeviceDetection';
+import { DeviceSettingsModal } from './components/DeviceSettingsModal';
+import { MobileBottomNav } from './components/MobileBottomNav';
 
 export default function App() {
+  const deviceInfo = useDeviceDetection();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [telemetry, setTelemetry] = useState<SolarTelemetry>(INITIAL_TELEMETRY);
   const [devices, setDevices] = useState<DeviceInventoryItem[]>(INITIAL_DEVICES);
@@ -50,7 +57,14 @@ export default function App() {
   const [isSimulating, setIsSimulating] = useState<boolean>(true);
   const [whyDrawerOpen, setWhyDrawerOpen] = useState<boolean>(false);
   const [whyMetric, setWhyMetric] = useState<'pv' | 'battery' | 'grid' | 'house'>('pv');
+  const [pwaModalOpen, setPwaModalOpen] = useState<boolean>(false);
+  const [deviceSettingsOpen, setDeviceSettingsOpen] = useState<boolean>(false);
   const [lastTickTime, setLastTickTime] = useState<string>('14:32:45');
+
+  // Dynamic polling interval:
+  // - In foreground: 2000ms for fluid, responsive real-time updates
+  // - In background (tab hidden / smartphone locked): 8000ms throttled to conserve battery and CPU
+  const pollIntervalMs = deviceInfo.isBackground ? 8000 : 2000;
 
   // Live telemetry subtle ticker
   useEffect(() => {
@@ -71,10 +85,17 @@ export default function App() {
         const houseDrift = Math.floor(Math.random() * 15) - 7;
         const newHouseTotal = Math.max(700, prev.houseTotalWatts + houseDrift);
 
-        // Trucki zero-export regulation (Sun-2000)
-        const neededFromBat = Math.max(0, newHouseTotal - (newTotalPv * 0.5));
-        const limitedBatWatts = Math.min(prev.truckiPowerLimitWatts, Math.round(neededFromBat));
-        const newGridWatts = Math.round(newHouseTotal - (newTotalPv * 0.5) - limitedBatWatts);
+        // Trucki zero-export regulation (Sun-2000 AC injection)
+        const neededFromBat = Math.max(0, newHouseTotal - newPvHoymiles);
+        const limitedBatWatts = prev.truckiZeroExportEnabled 
+          ? Math.min(prev.truckiPowerLimitWatts, Math.round(neededFromBat))
+          : 0;
+        const newGridWatts = Math.round(newHouseTotal - newPvHoymiles - limitedBatWatts);
+
+        // DC Battery balance (Victron MPPT charge vs Lumentree DC draw)
+        const lumentreeDcDraw = limitedBatWatts > 0 ? Math.round(limitedBatWatts / 0.92) : 0;
+        const mpptDcCharge = prev.pvVictronMppt1Watts + prev.pvVictronMppt2Watts;
+        const netBatteryWatts = mpptDcCharge - lumentreeDcDraw;
 
         return {
           ...prev,
@@ -82,15 +103,50 @@ export default function App() {
           pvTotalWatts: newTotalPv,
           houseTotalWatts: newHouseTotal,
           truckiActualOutputWatts: limitedBatWatts,
-          batteryWatts: -limitedBatWatts,
+          batteryWatts: netBatteryWatts,
           gridTotalWatts: newGridWatts,
           gridMode: newGridWatts >= 0 ? 'Bezug' : 'Einspeisung'
         };
       });
-    }, 2000);
+    }, pollIntervalMs);
 
     return () => clearInterval(interval);
-  }, [isSimulating]);
+  }, [isSimulating, pollIntervalMs]);
+
+  // Keyboard navigation for Desktop PC (keys 1-8, Space, ?, D)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+      if (e.key >= '1' && e.key <= '8') {
+        const tabMap: Record<string, string> = {
+          '1': 'dashboard',
+          '2': 'energy',
+          '3': 'devices',
+          '4': 'network',
+          '5': 'mqtt-api',
+          '6': 'control',
+          '7': 'maintenance',
+          '8': 'report',
+        };
+        if (tabMap[e.key]) {
+          setActiveTab(tabMap[e.key]);
+        }
+      } else if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        setIsSimulating(prev => !prev);
+      } else if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+        e.preventDefault();
+        setWhyDrawerOpen(prev => !prev);
+      } else if (e.key.toLowerCase() === 'd') {
+        setDeviceSettingsOpen(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Handle Accepting Discovered Device
   const handleAcceptDiscoveredDevice = (dev: DiscoveredDevice) => {
@@ -245,11 +301,32 @@ export default function App() {
           setWhyMetric('pv');
           setWhyDrawerOpen(true);
         }}
+        onOpenPWAInfo={() => setPwaModalOpen(true)}
         lastTickTime={lastTickTime}
+        deviceInfo={deviceInfo}
+        onOpenDeviceSettings={() => setDeviceSettingsOpen(true)}
       />
 
+      {/* Ambient Wall-Mount Kiosk Alert Banner if WakeLock is active */}
+      {deviceInfo.wakeLockActive && (
+        <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-1.5 text-xs text-amber-300 font-mono-code flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+            <span>Wanddisplay Kiosk-Modus aktiv: Bildschirm wird dauerhaft wachgehalten.</span>
+          </div>
+          <button
+            onClick={() => deviceInfo.toggleWakeLock()}
+            className="text-[11px] underline hover:text-white"
+          >
+            Deaktivieren
+          </button>
+        </div>
+      )}
+
       {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-6 relative z-10">
+      <main className={`max-w-7xl mx-auto px-3 sm:px-6 py-6 relative z-10 ${
+        deviceInfo.deviceType === 'mobile' ? 'pb-28' : ''
+      }`}>
         
         {/* TAB 1: DASHBOARD (STEUERZENTRALE & ENERGIEFLUSS) */}
         {activeTab === 'dashboard' && (
@@ -316,6 +393,22 @@ export default function App() {
                 </p>
               </div>
 
+              <div 
+                onClick={() => setPwaModalOpen(true)}
+                className="group cursor-pointer p-4 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-amber-500/30 hover:border-amber-500/50 transition-all duration-200 shadow-sm"
+              >
+                <div className="flex items-center justify-between text-xs text-amber-400 font-medium mb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <Smartphone className="w-4 h-4 text-amber-400" />
+                    Mobile PWA & App-Setup
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-amber-300 group-hover:translate-x-0.5 transition-all" />
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Vollbild-Installation auf iOS & Android, Offline-Cache, LAN-Sofortzugriff auf http://trucki.local.
+                </p>
+              </div>
+
             </div>
 
           </div>
@@ -336,6 +429,7 @@ export default function App() {
         {activeTab === 'devices' && (
           <DeviceInventory
             devices={devices}
+            telemetry={telemetry}
           />
         )}
 
@@ -373,6 +467,8 @@ export default function App() {
           <AuditAndMaintenance
             changeLog={changeLog}
             maintenanceLog={maintenanceLog}
+            telemetry={telemetry}
+            devices={devices}
             onAddMaintenanceEntry={(newEntry) => {
               const created: MaintenanceEntry = {
                 id: `mnt-${Date.now()}`,
@@ -405,6 +501,40 @@ export default function App() {
         telemetry={telemetry}
         initialMetric={whyMetric}
       />
+
+      {/* Mobile PWA Setup & Info Modal */}
+      <PWASetupInfoModal
+        isOpen={pwaModalOpen}
+        onClose={() => setPwaModalOpen(false)}
+      />
+
+      {/* Device & Hardware Settings Modal */}
+      <DeviceSettingsModal
+        isOpen={deviceSettingsOpen}
+        onClose={() => setDeviceSettingsOpen(false)}
+        deviceInfo={{
+          ...deviceInfo,
+          setOverride: deviceInfo.setOverride,
+          toggleWakeLock: deviceInfo.toggleWakeLock
+        }}
+      />
+
+      {/* Mobile Bottom Navigation Dock */}
+      {deviceInfo.deviceType === 'mobile' && (
+        <MobileBottomNav
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          onOpenWhy={() => {
+            setWhyMetric('pv');
+            setWhyDrawerOpen(true);
+          }}
+          onOpenPWAInfo={() => setPwaModalOpen(true)}
+          onOpenDeviceSettings={() => setDeviceSettingsOpen(true)}
+        />
+      )}
+
+      {/* Offline Toast Indicator */}
+      <OfflineIndicator />
 
       {/* Global Sci-Fi Status Footer */}
       <footer className="w-full border-t border-slate-800 bg-slate-950/80 px-4 py-3 text-xs font-mono-code text-slate-500 mt-12">

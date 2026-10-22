@@ -24,9 +24,14 @@ import {
   GitBranch,
   ShieldAlert,
   HelpCircle,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Eye,
+  Maximize2,
+  Calculator
 } from 'lucide-react';
-import { ChangeLogEntry, MaintenanceEntry } from '../types';
+import { ChangeLogEntry, MaintenanceEntry, SolarTelemetry, DeviceInventoryItem } from '../types';
+import { ParameterAuditView } from './ParameterAuditView';
+import { INITIAL_TELEMETRY, INITIAL_DEVICES } from '../data/initialData';
 
 interface ManualDoc {
   id: string;
@@ -58,12 +63,16 @@ interface AuditAndMaintenanceProps {
   changeLog: ChangeLogEntry[];
   maintenanceLog: MaintenanceEntry[];
   onAddMaintenanceEntry: (entry: Omit<MaintenanceEntry, 'id'>) => void;
+  telemetry?: SolarTelemetry;
+  devices?: DeviceInventoryItem[];
 }
 
 export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
   changeLog,
   maintenanceLog,
-  onAddMaintenanceEntry
+  onAddMaintenanceEntry,
+  telemetry = INITIAL_TELEMETRY,
+  devices = INITIAL_DEVICES
 }) => {
   const [activeTab, setActiveTab] = useState<'changelog' | 'maintenance' | 'docs'>('changelog');
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
@@ -72,24 +81,73 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
   const [search, setSearch] = useState<string>('');
   
   // Docs Tab Sub-Filter
-  const [docsFilter, setDocsFilter] = useState<'all' | 'manuals' | 'wiring' | 'diagnostics' | 'battery'>('all');
+  const [docsFilter, setDocsFilter] = useState<'all' | 'manuals' | 'parameter-audit' | 'wiring' | 'diagnostics' | 'battery' | 'victron-calc'>('all');
+
+  // Interactive PDF Viewer Modal state
+  const [selectedPdfModal, setSelectedPdfModal] = useState<ManualDoc | null>(null);
+
+  // Victron Wiring Unlimited Cable Calculator states
+  const [calcVoltage, setCalcVoltage] = useState<number>(48);
+  const [calcPower, setCalcPower] = useState<number>(1200);
+  const [calcLengthMeters, setCalcLengthMeters] = useState<number>(2.5);
+  const [calcCableMm2, setCalcCableMm2] = useState<number>(25);
 
   // Hardware Tab Interactive States (migrated from MqttApiDocs)
   const [selectedBatteryType, setSelectedBatteryType] = useState<'16s' | '8s'>('16s');
   const [customCellCutoff, setCustomCellCutoff] = useState<number>(3.00);
   const [selectedErrorCode, setSelectedErrorCode] = useState<number>(1);
-  const [selectedWiringPlanId, setSelectedWiringPlanId] = useState<string>('plan-rs485');
+  const [selectedWiringPlanId, setSelectedWiringPlanId] = useState<string>('plan-powerqueen-3p2s');
 
   // Form state for manual maintenance log
   const [newDevice, setNewDevice] = useState<string>('48V LiFePO4 Speicher (6x Power Queen 100Ah)');
   const [newTask, setNewTask] = useState<string>('Zellenprüfung & Drehmomentkontrolle');
-  const [newDescription, setNewDescription] = useState<string>('Prüfung der Zellenspannungen und Drehmomente der M8 Pole (9-11 Nm).');
+  const [newDescription, setNewDescription] = useState<string>('Prüfung der Zellenspannungen und Drehmomente der M8 Pole (9-11 Nm nach Power Queen Handbuch S. 3).');
   const [newResult, setNewResult] = useState<'Erfolgreich' | 'Warnung' | 'Behoben' | 'Fehlgeschlagen'>('Erfolgreich');
   const [newTechnician, setNewTechnician] = useState<string>('Betreiber (Haucky)');
   const [newNotes, setNewNotes] = useState<string>('Alle 16 Zellen im Toleranzbereich (ΔU < 15 mV).');
 
   // State for extensible manuals library
   const [manuals, setManuals] = useState<ManualDoc[]>([
+    {
+      id: 'manual-powerqueen',
+      title: 'Power Queen 25.6V 100Ah LiFePO4',
+      subtitle: 'Bedienungsanleitung & Spezifikationen (100A BMS Platine)',
+      version: '25.6V 100Ah • 2560Wh',
+      date: 'Power Queen Tech',
+      fileUrl: '/assets/aistudio/Handbuch___PowerQueen-25.6V100Ah_9781bbe2.pdf',
+      isLocalAsset: true,
+      category: 'battery',
+      badgeColor: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+      description: 'Original-Bedienungsanleitung für die LiFePO4 Akkus. Enthält Ladespannung (28,8V ±0,4V bzw. 57,6V bei 2S), Ladeströme (20A empf., 50A max.), 2S/4P Reihen- & Parallelschaltung für 48V (51,2V) Systeme, M8 Polbolzen (16mm), 6-Monats-Spannungsabgleich sowie Reaktivierung nach BMS-Notabschaltung (0V-Lader / MPPT 3-10s).',
+      tags: [
+        { label: 'Ladespannung', value: '28,8V ±0,4V (57,6V 2S)' },
+        { label: 'BMS Dauerstrom', value: '100A (300A @ 1s Peak)' },
+        { label: 'Polbolzen', value: 'M8*16mm (9–11 Nm)' },
+        { label: 'BMS Reaktivierung', value: '0V-Lader / PV 3–10s' },
+        { label: 'Zyklenfestigkeit', value: '≥ 4000 Zyklen' },
+        { label: 'Ruhespannung voll', value: '≥ 26,66V (53,32V 2S)' }
+      ]
+    },
+    {
+      id: 'manual-victron-wiring',
+      title: 'Victron Energy: Wiring Unlimited',
+      subtitle: 'Umfassendes Handbuch für elektrische Verkabelung (Batterie, PV, AC/DC)',
+      version: 'rev 03 - 09/2026',
+      date: 'Margreet Leeftink (72 S.)',
+      fileUrl: '/assets/aistudio/Victron_Verkablung-Wiring_Unlimited_11657c5c.pdf',
+      isLocalAsset: true,
+      category: 'mppt',
+      badgeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+      description: 'Offizielles Fachbuch von Victron Energy zur fehlerfreien Elektroinstallation. Themen: Kabeldimensionierung (Faustformel Strom/3 = mm²), Spannungsabfall (<2,5%), Restwelligkeits-Vermeidung, symmetrische Parallelschaltung von Batteriebänken mit Sammelschienen, Shunt-Einbau im Minuspfad und Sicherungsauswahl für Lithium (Klasse T / NH).',
+      tags: [
+        { label: 'Spannungsabfall', value: 'Max. 2,5% (1,2V @ 48V)' },
+        { label: 'Faustformel DC', value: 'Strom / 3 = Querschnitt mm²' },
+        { label: 'Shunt-Einbau', value: 'Letztes Bauteil vor Akku-Minus' },
+        { label: 'Lithium-Schutz', value: 'Hohe Unterbrechung (Klasse T)' },
+        { label: 'Sammelschiene', value: '10x5 mm Kupfer = 150A' },
+        { label: 'Drehmoment M8', value: '12 Nm (Messing H62)' }
+      ]
+    },
     {
       id: 'manual-t2sg',
       title: 'Trucki2Shelly Gateway (T2SG)',
@@ -100,8 +158,9 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
       isLocalAsset: true,
       category: 'gateway',
       badgeColor: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
-      description: 'Detaillierte Anleitung für das Gateway zur Nulleinspeisung. Enthält Fallback-AP, strikte Uppercase MQTT Topics, Shelly RPC Integration und das 500ms Zähler-Update.',
+      description: 'Detaillierte Anleitung für das Gateway zur Nulleinspeisung. Enthält mDNS (http://trucki.local), Fallback-AP (192.168.4.1), strikte Uppercase MQTT Topics, Shelly RPC Integration und 500ms Zähler-Update.',
       tags: [
+        { label: 'Web-UI Hostname', value: 'trucki.local' },
         { label: 'Fallback AP', value: '192.168.4.1' },
         { label: 'MQTT-Syntax', value: 'STRIKT GROSS' },
         { label: 'Zähler-Update', value: '~500 ms' },
@@ -166,6 +225,52 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
 
   // State for extensible wiring diagrams
   const [wiringPlans, setWiringPlans] = useState<WiringDiagram[]>([
+    {
+      id: 'plan-powerqueen-3p2s',
+      title: 'Power Queen 25.6V 100Ah ➔ 48V (51.2V) 3P2S Batteriebank nach Handbuch S. 14–21',
+      category: 'dc',
+      standard: 'Power Queen LiFePO4 Spezifikation & VDE-AR-E 2510-2',
+      cableGauge: '35 mm² bis 50 mm² feindrähtige Kupferleitung mit M8 Rohrkabelschuhen',
+      protection: '100A/125A Einzelsicherungen pro 2S-Strang + 250A NH00/Klasse-T Haupttrenner',
+      summary: 'Konfiguration von 6x Power Queen 25.6V 100Ah Akkus als 3P2S-Bank (51,2V 300Ah / 15.360Wh) mit symmetrischen Leitungswegen und Kupfersammelschienen.',
+      connections: [
+        { from: 'Strang A: Akku A1 (+)', to: 'Akku A2 (-)', signal: '2S Reihenbrücke (35 mm²)', color: '#ef4444', note: 'M8 Bolzen mit 9–11 Nm anziehen (Handbuch S. 3)' },
+        { from: 'Strang B: Akku B1 (+)', to: 'Akku B2 (-)', signal: '2S Reihenbrücke (35 mm²)', color: '#ef4444', note: 'M8 Bolzen mit 9–11 Nm anziehen (Handbuch S. 3)' },
+        { from: 'Strang C: Akku C1 (+)', to: 'Akku C2 (-)', signal: '2S Reihenbrücke (35 mm²)', color: '#ef4444', note: 'M8 Bolzen mit 9–11 Nm anziehen (Handbuch S. 3)' },
+        { from: 'Strang A/B/C Pluspole', to: 'Zentrale Kupfersammelschiene (+)', signal: 'DC + Sammelstrang (51.2V)', color: '#ef4444', note: 'Exakt gleiche Kabellängen zu jedem Strang einhalten!' },
+        { from: 'Strang A/B/C Minuspole', to: 'Zentrale Kupfersammelschiene (-)', signal: 'DC - Sammelstrang (GND)', color: '#0f172a', note: 'Exakt gleiche Kabellängen zu jedem Strang einhalten!' },
+        { from: 'Kupfersammelschiene (-)', to: 'Victron SmartShunt (BATTERY -)', signal: 'Gesamt-Rückleitung', color: '#0f172a', note: 'Einziger Anschlusspunkt an Batteriebank-Minus!' }
+      ],
+      safetyNotes: [
+        'Spannungsabgleich vor Inbetriebnahme (Power Queen Handbuch S. 9): Zuerst alle Batterien separat voll aufladen (Ruhespannung ≥ 26,66 V). Anschließend alle 6 Batterien parallel zusammenschalten und 12 bis 24 Stunden ruhen lassen, um Ausgleichsströme zu eliminieren.',
+        'Wartungsintervall: Alle 6 Monate Spannungsabgleich der Stränge wiederholen (Handbuch S. 13).',
+        'Niemals Lasten an den 24V-Mittelpunkt abgreifen (Wiring Unlimited S. 21)! Bei 24V-Verbrauchern stattdessen einen isolierten Orion-Tr Smart DC-DC Wandler einsetzen.',
+        'BMS Not-Reaktivierung bei Unterspannung (< 18 V): Lasten trennen. Falls automatische Erholung ausbleibt, Ladegerät mit 0V-Ladefunktion oder 24V LiFePO4 Laderegler für 3–10 Sekunden anschließen (Handbuch S. 15–16).'
+      ]
+    },
+    {
+      id: 'plan-victron-wiring-unlimited',
+      title: 'Victron Wiring Unlimited: Symmetrische DC-Verteilung, Sammelschienen & SmartShunt',
+      category: 'dc',
+      standard: 'Victron Energy Wiring Unlimited (rev 03 - 09/2026, Kap. 3 & 4)',
+      cableGauge: 'Nach Faustformel: Strom / 3 = mm² (z. B. 60A / 3 = 20 mm² ➔ 25 mm² oder 35 mm²)',
+      protection: 'Klasse-T Sicherung (20 kA – 200 kA Ausschaltvermögen) oder NH00 250A',
+      summary: 'Normgerechte Gleichstromarchitektur mit zentraler Kupfersammelschiene (10x5 mm = 150 A), minimalem Spannungsabfall (< 2,5%) und fehlerfreier Shunt-Platzierung.',
+      connections: [
+        { from: 'Batteriebank Minus (Sammelschiene)', to: 'Victron SmartShunt (BATTERY -)', signal: 'Batterie-Minus (Reinstrom)', color: '#0f172a', note: 'Kein weiterer Verbraucher oder Lader darf hier angeschlossen sein!' },
+        { from: 'Victron SmartShunt (SYSTEM -)', to: 'DC-Minussammelschiene (System GND)', signal: 'System-GND (Referenz)', color: '#0f172a', note: 'Zentraler Knotenpunkt für alle Wechselrichter & Laderegler' },
+        { from: 'Batteriebank Plus (Sammelschiene)', to: 'Klasse-T / NH-Sicherung (200A/250A)', signal: 'DC + Hauptpfad', color: '#ef4444', note: 'Höchstes Ausschaltvermögen für LiFePO4 Kurzschlussschutz' },
+        { from: 'Hauptsicherung Ausgang', to: 'DC-Plussammelschiene (z. B. Lynx Distributor)', signal: 'DC + System-Schiene', color: '#ef4444', note: 'Verzinnte Kupferschiene 50 mm² (150 A Nennstrom)' },
+        { from: 'DC-Plussammelschiene', to: 'Lumentree DC + (über 63A/80A Sicherung)', signal: 'Inverter-Versorgung', color: '#ef4444', note: 'Gleiche Kabellänge für Vor- und Rückleiter einhalten' },
+        { from: 'Smart Battery Sense', to: 'Batteriepol + & - (mit 0,75 mm²)', signal: 'V-Sense & Temp-Kompensation', color: '#38bdf8', note: 'Kompensiert Kabelspannungsverluste für MPPT-Ladevorgang' }
+      ],
+      safetyNotes: [
+        'Shunt-Grundregel (Wiring Unlimited S. 40): Ausnahmslos JEDER Verbraucher und Lader muss auf der System-Seite des Shunts angeschlossen werden. Anschlüsse direkt am Batterie-Minus verfälschen die Strombilanz und führen zur Drift der SoC-Berechnung!',
+        'Spannungsabfall-Vorgabe (S. 10): Maximal 2,5 % Spannungsabfall im gesamten DC-Pfad anstreben (bei 48V maximal 1,2 V Spannungsverlust unter Volllast).',
+        'Restwelligkeits-Vermeidung (S. 13–15): Schwankende Gleichspannung (100 Hz Ripple) entsteht durch zu dünne DC-Leitungen und zerstört Wechselrichter-Kondensatoren vorzeitig. Leitungen kurz halten und Querschnitt nicht sparen!',
+        'Messing-Anzugsmomente (S. 8): M8 Bolzen = 12 Nm. Unterlegscheibe und Federring in korrekter Reihenfolge montieren; niemals Scheiben zwischen Kabelschuh und Kontaktfläche legen.'
+      ]
+    },
     {
       id: 'plan-rs485',
       title: 'RS485 Bus-Verkabelung: Trucki T2SG ➔ Lumentree RJ45 Limiter-Port',
@@ -572,7 +677,9 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
             {[
               { id: 'all', label: 'Alle Bereiche' },
               { id: 'manuals', label: 'PDF-Handbücher' },
+              { id: 'parameter-audit', label: 'Parameter-Prüfbericht (Handbuch-Abgleich)' },
               { id: 'wiring', label: 'Verkabelungspläne & Schemata' },
+              { id: 'victron-calc', label: 'Victron Kabel- & Schutzrechner' },
               { id: 'diagnostics', label: 'Lumentree Fehlerkatalog' },
               { id: 'battery', label: 'LiFePO4 Akku-Rechner & ZEPC' }
             ].map(f => (
@@ -590,6 +697,25 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
             ))}
           </div>
 
+          {/* Explanation Banner: Handbücher dienen ausschließlich zur Erklärung */}
+          <div className="p-4 rounded-xl bg-sky-950/40 border border-sky-500/30 flex items-start gap-3 text-xs text-sky-200">
+            <BookOpen className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
+            <div className="leading-relaxed">
+              <strong className="text-sky-300 font-semibold block text-sm mb-1">
+                Erklärung & Referenzdokumentation (Hersteller-Handbücher):
+              </strong>
+              Die hinterlegten Handbücher und Leitfäden (Trucki T2SG v1.15, Lumentree SUN-2000, Power Queen 25.6V 100Ah, Victron Wiring Unlimited) dienen <span className="underline decoration-sky-400 font-semibold">ausschließlich zur technischen Erklärung</span>, Parameter-Herleitung, Register-Dokumentation und normgerechten Auslegung. Die Steuerung und Live-Auslesung der Anlage erfolgt unabhängig und direkt über die jeweiligen Netzwerkschnittstellen (z.B. <code className="px-1.5 py-0.5 rounded bg-sky-900/60 font-mono-code text-cyan-300 font-bold">http://trucki.local</code>, Shelly Pro 3EM, AhoyDTU).
+            </div>
+          </div>
+
+          {/* PARAMETER-PRÜFBERICHT (HANDBUCH-ABGLEICH) */}
+          {docsFilter === 'parameter-audit' && (
+            <ParameterAuditView 
+              telemetry={telemetry} 
+              devices={devices} 
+            />
+          )}
+
           {/* 1. SECTION: PDF HANDBÜCHER & DOKUMENTE BIBLIOTHEK */}
           {(docsFilter === 'all' || docsFilter === 'manuals') && (
             <div className="space-y-3">
@@ -600,7 +726,7 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
                     PDF-Handbuch & Dokumenten-Bibliothek
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Originale Herstelleranleitungen, Firmware-Hinweise und Protokoll-Referenzen
+                    Originale Herstelleranleitungen, Wiring Unlimited Leitfaden, Firmware-Hinweise und Protokoll-Referenzen
                   </p>
                 </div>
                 <span className="text-xs font-mono-code text-slate-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
@@ -616,12 +742,15 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
                   >
                     <div>
                       <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-400">
+                        <div 
+                          className="flex items-center gap-3 cursor-pointer"
+                          onClick={() => man.isLocalAsset && setSelectedPdfModal(man)}
+                        >
+                          <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-400 hover:bg-sky-500/20 transition-colors">
                             <FileText className="w-5 h-5" />
                           </div>
                           <div>
-                            <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                            <h4 className="text-sm font-bold text-white flex items-center gap-2 hover:text-sky-300 transition-colors">
                               {man.title}
                               <span className={`px-2 py-0.5 rounded text-[10px] font-mono-code ${man.badgeColor}`}>
                                 {man.version}
@@ -632,15 +761,26 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
                         </div>
 
                         {man.isLocalAsset ? (
-                          <a
-                            href={man.fileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs transition-colors shadow-sm whitespace-nowrap"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            PDF öffnen
-                          </a>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button
+                              onClick={() => setSelectedPdfModal(man)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 font-bold text-xs transition-colors shadow-sm"
+                              title="Direkt im Browser ansehen"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Vorschau</span>
+                            </button>
+                            <a
+                              href={man.fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-medium text-xs transition-colors shadow-sm"
+                              title="In neuem Tab / PDF herunterladen"
+                            >
+                              <Download className="w-3.5 h-3.5 text-slate-400" />
+                              <span>PDF</span>
+                            </a>
+                          </div>
                         ) : (
                           <span className="px-2.5 py-1 rounded-lg bg-slate-900 text-slate-400 text-[10px] font-mono-code border border-slate-800">
                             Bald verfügbar
@@ -781,6 +921,233 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
                     ))}
                   </ul>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* SECTION 2.5: VICTRON ENERGY WIRING UNLIMITED RECHNER & LEITFADEN */}
+          {(docsFilter === 'all' || docsFilter === 'victron-calc') && (
+            <div className="glass-panel p-5 rounded-2xl border border-white/[0.08] space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Calculator className="w-4 h-4 text-blue-400" />
+                    Victron Energy: Wiring Unlimited • Kabel- & Schutzrechner
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Offizielle Auslegungsregeln nach Margreet Leeftink (rev 03 - 09/2026): Spannungsabfall &lt; 2,5%, Restwelligkeit und Lithium-Absicherung
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const vicDoc = manuals.find(m => m.id === 'manual-victron-wiring');
+                      if (vicDoc) setSelectedPdfModal(vicDoc);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/40 hover:bg-blue-500/30 font-bold text-xs transition-colors shadow-sm"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Wiring Unlimited PDF (72 S.)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Calculator Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                
+                {/* Inputs */}
+                <div className="lg:col-span-5 p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3 font-mono-code text-xs">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                    <span className="text-slate-300 font-bold flex items-center gap-1.5">
+                      <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+                      Eingabeparameter DC-Strecke:
+                    </span>
+                    <span className="text-[10px] text-slate-500">Kupferleiter (ρ = 0.0175)</span>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] text-slate-400 flex justify-between">
+                      <span>Systemspannung:</span>
+                      <span className="text-cyan-400 font-bold">{calcVoltage} V DC</span>
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5 mt-1">
+                      {[12, 24, 48].map(v => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => setCalcVoltage(v)}
+                          className={`py-1 rounded text-center text-xs font-bold transition-all ${
+                            calcVoltage === v 
+                              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50' 
+                              : 'bg-slate-900 text-slate-400 border border-slate-800'
+                          }`}
+                        >
+                          {v} V
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] text-slate-400 flex justify-between">
+                      <span>Gleichstromleistung:</span>
+                      <span className="text-amber-300 font-bold">{calcPower} W</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="200"
+                      max="3000"
+                      step="50"
+                      value={calcPower}
+                      onChange={(e) => setCalcPower(parseInt(e.target.value))}
+                      className="w-full accent-amber-500 h-1.5 bg-slate-800 rounded mt-1"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
+                      <span>200 W (Teillast)</span>
+                      <span>1200 W (Lumentree Max)</span>
+                      <span>3000 W</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] text-slate-400 flex justify-between">
+                      <span>Einfache Kabellänge:</span>
+                      <span className="text-sky-300 font-bold">{calcLengthMeters.toFixed(1)} m (x2 Hin/Rück)</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="15.0"
+                      step="0.5"
+                      value={calcLengthMeters}
+                      onChange={(e) => setCalcLengthMeters(parseFloat(e.target.value))}
+                      className="w-full accent-sky-500 h-1.5 bg-slate-800 rounded mt-1"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
+                      <span>0.5 m (Optimal)</span>
+                      <span>5.0 m</span>
+                      <span>15.0 m</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] text-slate-400 flex justify-between">
+                      <span>Gewählter Kabelquerschnitt:</span>
+                      <span className="text-emerald-400 font-bold">{calcCableMm2} mm²</span>
+                    </label>
+                    <select
+                      value={calcCableMm2}
+                      onChange={(e) => setCalcCableMm2(parseFloat(e.target.value))}
+                      className="w-full p-2 rounded bg-slate-900 border border-slate-700 text-slate-200 mt-1 font-bold"
+                    >
+                      {[6, 10, 16, 25, 35, 50, 70, 95, 120].map(cs => (
+                        <option key={cs} value={cs}>{cs} mm² ({cs >= 25 ? 'Empfohlen für 48V Speicher' : 'Dünner Querschnitt'})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Calculation Results */}
+                {(() => {
+                  const currentA = calcPower / calcVoltage;
+                  const faustregelMm2 = Math.ceil(currentA / 3);
+                  // R = rho * (2 * L) / A (rho = 0.0175 ohm*mm2/m for copper)
+                  const resistanceOhm = (0.0175 * (2 * calcLengthMeters)) / calcCableMm2;
+                  const voltageDropV = currentA * resistanceOhm;
+                  const voltageDropPercent = (voltageDropV / calcVoltage) * 100;
+                  const powerLossWatts = Math.pow(currentA, 2) * resistanceOhm;
+                  const isSafe = voltageDropPercent <= 2.5;
+                  const isExcellent = voltageDropPercent <= 1.2;
+
+                  return (
+                    <div className="lg:col-span-7 flex flex-col justify-between space-y-3 font-mono-code text-xs">
+                      
+                      {/* Metric cards */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                        <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block">Dauerstrom (I = P/U)</span>
+                          <div className="text-base font-bold text-slate-100 mt-0.5">{currentA.toFixed(1)} A</div>
+                          <span className="text-[9px] text-slate-500">Betriebsstrom</span>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-slate-950/80 border border-cyan-500/30">
+                          <span className="text-[10px] text-slate-400 block">Faustregel (Strom / 3)</span>
+                          <div className="text-base font-bold text-cyan-300 mt-0.5">≥ {faustregelMm2} mm²</div>
+                          <span className="text-[9px] text-cyan-400">Wiring Unlimited S. 24</span>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block">Schleifenwiderstand</span>
+                          <div className="text-base font-bold text-slate-100 mt-0.5">{(resistanceOhm * 1000).toFixed(2)} mΩ</div>
+                          <span className="text-[9px] text-slate-500">Hin- & Rückleiter ({calcLengthMeters * 2} m)</span>
+                        </div>
+
+                        <div className={`p-3 rounded-xl bg-slate-950/80 border ${
+                          isExcellent ? 'border-emerald-500/50 bg-emerald-950/10' : isSafe ? 'border-amber-500/50 bg-amber-950/10' : 'border-rose-500/50 bg-rose-950/10'
+                        }`}>
+                          <span className="text-[10px] text-slate-400 block">Spannungsabfall (ΔU)</span>
+                          <div className={`text-base font-bold mt-0.5 ${
+                            isExcellent ? 'text-emerald-400' : isSafe ? 'text-amber-400' : 'text-rose-400'
+                          }`}>
+                            {voltageDropV.toFixed(3)} V ({voltageDropPercent.toFixed(2)} %)
+                          </div>
+                          <span className="text-[9px] text-slate-400">Grenzwert: max. 2,5 %</span>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block">Kabel-Wärmeverlust</span>
+                          <div className="text-base font-bold text-amber-300 mt-0.5">{powerLossWatts.toFixed(1)} W</div>
+                          <span className="text-[9px] text-slate-500">Thermische Abwärme</span>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block">Anzugsmoment (M8 Bolzen)</span>
+                          <div className="text-base font-bold text-sky-300 mt-0.5">12 Nm (H62 Messing)</div>
+                          <span className="text-[9px] text-slate-500">Power Queen: 9–11 Nm</span>
+                        </div>
+                      </div>
+
+                      {/* Victron Directive Status Box */}
+                      <div className={`p-3.5 rounded-xl border ${
+                        isExcellent 
+                          ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-300' 
+                          : isSafe 
+                          ? 'bg-amber-950/20 border-amber-500/40 text-amber-300' 
+                          : 'bg-rose-950/30 border-rose-500/50 text-rose-300'
+                      }`}>
+                        <div className="flex items-center gap-2 font-bold text-xs mb-1">
+                          {isSafe ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <AlertTriangle className="w-4 h-4 text-rose-400" />}
+                          <span>Victron-Konformitätsbewertung nach Wiring Unlimited:</span>
+                        </div>
+                        <p className="text-[11px] leading-relaxed text-slate-200">
+                          {isExcellent && `Hervorragende Dimensionierung! Mit ${voltageDropPercent.toFixed(2)}% liegt der Spannungsabfall weit unter der 2,5%-Grenze (Wiring Unlimited S. 10). Die Restwelligkeitsspannung bleibt minimal (< 0,5V) und schützt die Inverterkondensatoren vor frühzeitiger Alterung.`}
+                          {!isExcellent && isSafe && `Zulässige Auslegung! Der Spannungsabfall beträgt ${voltageDropPercent.toFixed(2)}% und erfüllt die Victron-Empfehlung (< 2,5%). Die thermische Belastung liegt bei ${powerLossWatts.toFixed(1)} W. Ausreichende Belüftung im Kabelkanal sicherstellen.`}
+                          {!isSafe && `Achtung: Querschnitt zu gering! Der Spannungsabfall von ${voltageDropPercent.toFixed(2)}% überschreitet die empfohlene 2,5%-Grenze. Dies führt zu übermäßiger Restwelligkeit (100Hz Ripple, S. 13-15), frühzeitiger Inverter-Überlastung und Brandgefahr durch erhitzte Kabel. Erhöhen Sie den Querschnitt auf mindestens ${faustregelMm2} mm² oder verkürzen Sie die Leitung!`}
+                        </p>
+                      </div>
+
+                      {/* Technical Standards Table */}
+                      <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-300 space-y-1.5">
+                        <span className="font-bold text-white flex items-center gap-1.5 text-xs">
+                          <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+                          Sicherungs- & Sammelschienen-Regeln (Wiring Unlimited S. 25 & 41):
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px] font-mono-code text-slate-300 pt-1">
+                          <div className="p-1.5 rounded bg-slate-950 border border-slate-800">
+                            <span className="text-amber-400 font-bold block">Lithium-Absicherung:</span>
+                            Klasse-T (200 kA) oder NH-Sicherungen (25 kA) zwingend erforderlich wegen hohem Fehlerstrom!
+                          </div>
+                          <div className="p-1.5 rounded bg-slate-950 border border-slate-800">
+                            <span className="text-cyan-400 font-bold block">Sammelschienen (Kupfer):</span>
+                            10 mm × 5 mm Querschnitt = 50 mm² ausgelegt für 150 A Dauerbelastung bis 5 m Länge.
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  );
+                })()}
+
               </div>
             </div>
           )}
@@ -1420,6 +1787,80 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Interaktiver In-App PDF-Viewer */}
+      {selectedPdfModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/90 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-6xl h-[92vh] rounded-2xl glass-panel border border-sky-500/50 bg-slate-950 flex flex-col overflow-hidden shadow-2xl">
+            
+            {/* Viewer Header */}
+            <div className="p-3.5 sm:p-4 border-b border-slate-800 bg-slate-900/90 flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-400">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    {selectedPdfModal.title}
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-mono-code ${selectedPdfModal.badgeColor}`}>
+                      {selectedPdfModal.version}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">{selectedPdfModal.subtitle} • {selectedPdfModal.date}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href={selectedPdfModal.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition-colors"
+                  title="In neuem Tab öffnen"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Neuer Tab</span>
+                </a>
+                <a
+                  href={selectedPdfModal.fileUrl}
+                  download
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs transition-colors shadow-sm"
+                  title="PDF herunterladen"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download</span>
+                </a>
+                <button
+                  onClick={() => setSelectedPdfModal(null)}
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-slate-700 transition-colors ml-1"
+                  title="Schließen"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Reference Bar */}
+            <div className="px-4 py-2 bg-slate-900/60 border-b border-slate-800/80 flex flex-wrap items-center gap-2 text-xs font-mono-code overflow-x-auto flex-shrink-0">
+              <span className="text-[10px] text-slate-400 font-bold uppercase">Highlights:</span>
+              {selectedPdfModal.tags.map((tag, tIdx) => (
+                <span key={tIdx} className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-300">
+                  <span className="text-slate-400">{tag.label}:</span> <span className="text-sky-300 font-bold">{tag.value}</span>
+                </span>
+              ))}
+            </div>
+
+            {/* Embedded PDF iframe */}
+            <div className="flex-1 w-full bg-slate-900 relative">
+              <iframe
+                src={`${selectedPdfModal.fileUrl}#toolbar=1&navpanes=1`}
+                title={selectedPdfModal.title}
+                className="w-full h-full border-0"
+              />
+            </div>
           </div>
         </div>
       )}

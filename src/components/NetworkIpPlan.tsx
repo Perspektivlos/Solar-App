@@ -189,7 +189,30 @@ export const NetworkIpPlan: React.FC<NetworkIpPlanProps> = ({
                     )}
                   </td>
                   <td className="p-3 font-semibold text-slate-100">
-                    <div>{host.name}</div>
+                    <div className="flex items-center gap-2">
+                      <span>{host.name}</span>
+                      {host.services.some(s => s.toLowerCase().includes('http') || s.toLowerCase().includes('web') || s.toLowerCase().includes('mdns')) && (
+                        <a
+                          href={
+                            host.name.includes('trucki.local') 
+                              ? 'http://trucki.local' 
+                              : host.name.includes('shellypro3em.local')
+                              ? 'http://shellypro3em.local'
+                              : host.name.includes('ahoy-dtu.local')
+                              ? 'http://ahoy-dtu.local'
+                              : host.port === 8006
+                              ? `https://${host.ip}:8006`
+                              : `http://${host.ip}${host.port && host.port !== 80 ? `:${host.port}` : ''}`
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                          title="Web-Oberfläche öffnen"
+                        >
+                          <ExternalLink className="w-3 h-3 text-cyan-400" />
+                        </a>
+                      )}
+                    </div>
                     <div className="text-[10px] text-slate-500">{host.mac}</div>
                   </td>
                   <td className="p-3 text-slate-400">{host.deviceCategory}</td>

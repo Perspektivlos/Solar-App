@@ -63,7 +63,7 @@ export const INITIAL_TELEMETRY: SolarTelemetry = {
   truckiStatus: 'NORMAL',
 
   // Hausverbrauch
-  houseTotalWatts: 963, // 1420 PV + (-602 Bat) -> PV lädt 458W in Bat? Oder PV speist direkt + Bat Entladung.
+  houseTotalWatts: 1700, // Saldierte AC-Leistung: 960W Hoymiles + 595W Trucki + 145W Netzbezug
   houseDailyKwh: 7.92,
 
   // KPIs
@@ -81,19 +81,20 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
     serialNumber: '34945474D90C',
     ip: '192.168.0.100',
     mac: '34:94:54:74:d9:0c',
-    hostname: 'shellypro3em-main.lan',
+    hostname: 'shellypro3em.local',
     status: 'online',
     firmwareVersion: 'v1.4.2',
     firmwareStatus: 'Aktuell',
     lastChecked: '2026-09-14 14:30:12',
     hardwareSpecs: 'DIN-Schiene, 3x 120A Wandlerklemmen, LAN + WLAN, Dual-Core ESP32',
-    services: ['HTTP', 'MQTT', 'RPC WebSockets', 'mDNS'],
+    services: ['HTTP Web-UI', 'MQTT', 'RPC WebSockets', 'mDNS (shellypro3em.local)'],
     mqttTopics: [
       'venus/grid/shellypro/status/em:0',
       'venus/grid/shellypro/status/emdata:0',
       'shellypro3em/events/rpc'
     ],
     apiEndpoints: [
+      'http://shellypro3em.local/rpc/EM.GetStatus?id=0',
       'http://192.168.0.100/rpc/EM.GetStatus?id=0',
       'http://192.168.0.100/rpc/Shelly.GetDeviceInfo'
     ],
@@ -115,13 +116,13 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
     serialNumber: '116182104592',
     ip: '192.168.0.101',
     mac: '24:6f:28:90:31:ec',
-    hostname: 'ahoy-dtu.lan',
+    hostname: 'ahoy-dtu.local',
     status: 'online',
     firmwareVersion: 'v0.8.83',
     firmwareStatus: 'Aktuell',
     lastChecked: '2026-09-14 14:32:00',
     hardwareSpecs: '4x MPPT Inputs (je 2 Strings parallel), 1500W AC Peak, Funk 2.4GHz RF',
-    services: ['HTTP Web-UI', 'MQTT', 'REST API', 'Syslog'],
+    services: ['HTTP Web-UI (http://ahoy-dtu.local)', 'MQTT', 'REST API', 'Syslog'],
     mqttTopics: [
       'venus/pv/ahoydtu/HM1500/ch0/P_AC',
       'venus/pv/ahoydtu/HM1500/ch0/U_AC',
@@ -129,6 +130,7 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
       'venus/pv/ahoydtu/HM1500/status'
     ],
     apiEndpoints: [
+      'http://ahoy-dtu.local/api/live',
       'http://192.168.0.101/api/live',
       'http://192.168.0.101/api/ctrl'
     ],
@@ -150,13 +152,13 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
     serialNumber: 'TRK-582910-A',
     ip: '192.168.0.102',
     mac: 'a4:cf:12:87:66:b4',
-    hostname: 'trucki-gateway.lan',
+    hostname: 'trucki.local',
     status: 'online',
     firmwareVersion: 'v1.15 (18.01.2026)',
     firmwareStatus: 'Aktuell',
     lastChecked: '2026-09-14 14:31:45',
     hardwareSpecs: 'ESP8266 Steuerung mit RS485-Interface zu Lumentree Inverter, DAC-Platine, 45V-90V DC Input (Startspannung 49V)',
-    services: ['HTTP Web-UI', 'MQTT (Großbuchstaben)', 'mDNS (trucki-gateway.local)', 'System Log (/log.txt)'],
+    services: ['HTTP Web-UI (http://trucki.local)', 'MQTT (Großbuchstaben)', 'mDNS (trucki.local)', 'System Log (/log.txt)'],
     mqttTopics: [
       'T2SG/ACDISPLAY',
       'T2SG/ACSETPOINT',
@@ -172,6 +174,8 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
       'T2SG/REBOOTOVR'
     ],
     apiEndpoints: [
+      'http://trucki.local/',
+      'http://trucki.local/log.txt',
       'http://192.168.0.102/',
       'http://192.168.0.102/log.txt',
       'http://192.168.4.1 (Fallback AP)'
@@ -189,14 +193,14 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
   },
   {
     id: 'lifepo4-battery-bank',
-    name: '48V LiFePO4 Speicher (6x Power Queen 100Ah)',
+    name: '48V LiFePO4 Speicher (6x Power Queen 25.6V 100Ah)',
     category: 'Batterie / AC-System',
     vendor: 'Power Queen / JK-BMS',
-    model: '6x 12.8V 100Ah (16S 48V 300Ah / 15.36 kWh)',
+    model: '6x Power Queen 25.6V 100Ah in 3P2S (51.2V 300Ah / 15.36 kWh)',
     serialNumber: 'PQ-2024-B16S',
     ip: '192.168.0.103',
     mac: 'cc:50:e3:19:4a:22',
-    hostname: 'jkbms-lifepo4.lan',
+    hostname: 'jkbms.local',
     status: 'online',
     firmwareVersion: 'v15.30',
     firmwareStatus: 'Aktuell',
@@ -428,11 +432,11 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
 ];
 
 export const INITIAL_NETWORK_HOSTS: NetworkHost[] = [
-  { ip: '192.168.0.100', port: 80, name: 'Shelly Pro 3EM', deviceCategory: 'Netz / Zähler', services: ['HTTP', 'MQTT', 'RPC'], status: 'Online', latencyMs: 1.2, mac: '34:94:54:74:d9:0c' },
-  { ip: '192.168.0.101', port: 80, name: 'AhoyDTU (Hoymiles HM-1500)', deviceCategory: 'PV Wechselrichter', services: ['HTTP', 'MQTT', 'REST API'], status: 'Online', latencyMs: 4.8, mac: '24:6f:28:90:31:ec' },
-  { ip: '192.168.0.102', port: 80, name: 'Trucki 2 Shelly Gateway', deviceCategory: 'Batterie / Inverter', services: ['HTTP', 'MQTT', 'JSON Live'], status: 'Online', latencyMs: 2.1, mac: 'a4:cf:12:87:66:b4' },
-  { ip: '192.168.0.103', port: 80, name: 'JK-BMS LiFePO4 Bridge', deviceCategory: 'Batteriemanagement', services: ['HTTP', 'MQTT'], status: 'Online', latencyMs: 3.4, mac: 'cc:50:e3:19:4a:22' },
-  { ip: '192.168.0.111', port: 80, name: 'Venus OS (Victron RPi 3B)', deviceCategory: 'MPPT Steuerung', services: ['HTTP', 'MQTT', 'SSH:22', 'Modbus:502'], status: 'Online', latencyMs: 1.6, mac: 'b8:27:eb:d4:aa:81' },
+  { ip: '192.168.0.100', port: 80, name: 'Shelly Pro 3EM (shellypro3em.local)', deviceCategory: 'Netz / Zähler', services: ['HTTP', 'MQTT', 'RPC', 'mDNS'], status: 'Online', latencyMs: 1.2, mac: '34:94:54:74:d9:0c' },
+  { ip: '192.168.0.101', port: 80, name: 'AhoyDTU (ahoy-dtu.local)', deviceCategory: 'PV Wechselrichter', services: ['HTTP', 'MQTT', 'REST API', 'mDNS'], status: 'Online', latencyMs: 4.8, mac: '24:6f:28:90:31:ec' },
+  { ip: '192.168.0.102', port: 80, name: 'Trucki 2 Shelly Gateway (trucki.local)', deviceCategory: 'Batterie / Inverter', services: ['HTTP (trucki.local)', 'MQTT', 'JSON Live', 'mDNS'], status: 'Online', latencyMs: 2.1, mac: 'a4:cf:12:87:66:b4' },
+  { ip: '192.168.0.103', port: 80, name: 'JK-BMS LiFePO4 Bridge (jkbms.local)', deviceCategory: 'Batteriemanagement', services: ['HTTP', 'MQTT', 'BLE'], status: 'Online', latencyMs: 3.4, mac: 'cc:50:e3:19:4a:22' },
+  { ip: '192.168.0.111', port: 80, name: 'Venus OS (venus.local)', deviceCategory: 'MPPT Steuerung', services: ['HTTP', 'MQTT', 'SSH:22', 'Modbus:502', 'mDNS'], status: 'Online', latencyMs: 1.6, mac: 'b8:27:eb:d4:aa:81' },
   { ip: '192.168.0.200', port: 8006, name: 'Proxmox VE 8 Hypervisor', deviceCategory: 'Server Host', services: ['HTTPS', 'Web GUI', 'SSH:22'], status: 'Online', latencyMs: 0.4, mac: 'e8:9c:25:31:aa:99' },
   { ip: '192.168.0.201', port: 1883, name: 'Mosquitto MQTT Broker', deviceCategory: 'MQTT Broker', services: ['MQTT:1883', 'WS:9001'], status: 'Online', latencyMs: 0.3, mac: 'bc:24:11:80:44:01' },
   { ip: '192.168.0.202', port: 3000, name: 'Grafana Dashboard Node', deviceCategory: 'Visualisierung', services: ['HTTP:3000', 'API'], status: 'Online', latencyMs: 0.5, mac: 'bc:24:11:80:44:02' },
@@ -709,7 +713,7 @@ export const INITIAL_MQTT_TOPICS: MqttTopicDoc[] = [
 export const INITIAL_API_DOCS: ApiDoc[] = [
   {
     endpoint: '/',
-    baseUrl: 'http://trucki-gateway.lan (192.168.0.102)',
+    baseUrl: 'http://trucki.local (192.168.0.102)',
     method: 'GET',
     responseFormat: 'text/html',
     lastSuccessfulAccess: 'Vor 1.4s',
@@ -727,7 +731,7 @@ export const INITIAL_API_DOCS: ApiDoc[] = [
   },
   {
     endpoint: '/log.txt',
-    baseUrl: 'http://trucki-gateway.lan (192.168.0.102)',
+    baseUrl: 'http://trucki.local (192.168.0.102)',
     method: 'GET',
     responseFormat: 'text/plain',
     lastSuccessfulAccess: 'Vor 2.1s',
@@ -812,6 +816,17 @@ export const INITIAL_API_DOCS: ApiDoc[] = [
 ];
 
 export const INITIAL_CHANGELOG: ChangeLogEntry[] = [
+  {
+    id: 'chg-006',
+    timestamp: '2026-10-21 21:55:00',
+    device: 'Dokumentation & Anlagenschema',
+    parameter: 'HANDBÜCHER & WIRING UNLIMITED',
+    oldValue: '2 Handbücher hinterlegt',
+    newValue: '4 Handbücher + 5 Verkabelungspläne',
+    source: 'Web-UI',
+    detectionType: 'manuell',
+    userNotes: 'Power Queen 25.6V 100Ah Anleitung & Victron Wiring Unlimited (Margreet Leeftink rev03) mit interaktivem Kabel- und Schutzrechner integriert.'
+  },
   {
     id: 'chg-001',
     timestamp: '2026-09-14 11:20:15',
