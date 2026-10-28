@@ -357,7 +357,8 @@ server {{
 
     # Optionaler WebSocket / API Proxy (z.B. für MQTT WebSockets oder Node Backend)
     location /api/ {{
-        proxy_pass http://127.0.0.1:3000/;
+        # ohne abschliessenden Slash, damit /api/... unveraendert beim Backend ankommt
+        proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -394,18 +395,21 @@ server {{
 
 
 def step_create_systemd_service():
-    """Erstellt den Systemd-Dienst zur Ausführung des Vite Servers."""
+    """Erstellt den Systemd-Dienst fuer das Express-Backend (server.ts)."""
     print(f"\n{C_CYAN}[5/5] Richte Systemd-Dienst 'solar-lokal.service' ein...{C_RESET}")
 
     service_content = f"""[Unit]
-Description=Solar-Lokal Web Dashboard Service
-After=network.target
+Description=Solar-Lokal Backend (Express + MQTT)
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory={APP_DIR}
-ExecStart=/usr/bin/npm run preview -- --host 0.0.0.0 --port 3000
+EnvironmentFile=-{APP_DIR}/.env
+Environment=PORT=3000
+ExecStart=/usr/bin/npm start
 Restart=always
 RestartSec=5
 StandardOutput=journal

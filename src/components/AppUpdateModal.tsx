@@ -118,30 +118,26 @@ if __name__ == "__main__":
   };
 
   const handleStartUpdate = async () => {
+    // Das Backend fuehrt kein Fern-Update aus; nur echte Ergebnisse anzeigen
     setIsUpdating(true);
     setUpdateStep(1);
-
-    // Schritt 1: Git Pull
-    await new Promise(r => setTimeout(r, 1000));
-    setUpdateStep(2);
-
-    // Schritt 2: Build & Tailwind
-    await new Promise(r => setTimeout(r, 1400));
-    setUpdateStep(3);
-
-    // Schritt 3: Nginx & Service Reload
     try {
-      await fetch('/api/system/update/execute', { method: 'POST' });
+      const res = await fetch('/api/system/update/execute', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setIsUpdating(false);
+        setUpdateStep(0);
+        window.alert(data.message || `Update nicht moeglich (HTTP ${res.status}).`);
+        return;
+      }
+      setUpdateStep(4);
+      setIsUpdating(false);
+      setUpdateCompleted(true);
     } catch {
-      // Fallback
+      setIsUpdating(false);
+      setUpdateStep(0);
+      window.alert('Backend nicht erreichbar. Update bitte im Container ausfuehren.');
     }
-    await new Promise(r => setTimeout(r, 1000));
-    setUpdateStep(4);
-
-    // Schritt 4: Fertig
-    await new Promise(r => setTimeout(r, 600));
-    setIsUpdating(false);
-    setUpdateCompleted(true);
   };
 
   const handleCopy = (id: string, text: string) => {
