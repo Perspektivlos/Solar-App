@@ -94,9 +94,76 @@ def get_local_ip():
         return "127.0.0.1"
 
 
+def check_and_heal_dns():
+    """
+    Prüft die DNS-Auflösung und Internet-Konnektivität im LXC-Container.
+    Falls deb.nodesource.com oder github.com nicht aufgelöst werden können,
+    wird /etc/resolv.conf automatisch mit Fallback-Nameservern repariert.
+    """
+    print(f"\n{C_CYAN}[0/6] Prüfe Netzwerk- und DNS-Konnektivität...{C_RESET}")
+    
+    test_domains = ["deb.nodesource.com", "github.com", "deb.debian.org"]
+    dns_ok = False
+    
+    for domain in test_domains:
+        try:
+            socket.gethostbyname(domain)
+            dns_ok = True
+            break
+        except Exception:
+            pass
+
+    if dns_ok:
+        print(f"{C_GREEN}[✓] DNS-Auflösung funktional.{C_RESET}")
+        return True
+
+    print(f"{C_YELLOW}[!] DNS-Auflösung fehlgeschlagen (deb.nodesource.com / github.com nicht erreichbar).{C_RESET}")
+    print(f"{C_YELLOW}[*] Automatische Reparatur: Schreibe funktionale Nameserver in /etc/resolv.conf...{C_RESET}")
+
+    fallback_dns = (
+        "# Solar-Lokal Auto-Generated DNS\n"
+        "nameserver 192.168.0.1\n"
+        "nameserver 1.1.1.1\n"
+        "nameserver 8.8.8.8\n"
+    )
+
+    try:
+        if os.path.islink("/etc/resolv.conf"):
+            os.unlink("/etc/resolv.conf")
+        with open("/etc/resolv.conf", "w", encoding="utf-8") as f:
+            f.write(fallback_dns)
+        print(f"{C_GREEN}[✓] Nameserver erfolgreich gesetzt (192.168.0.1, 1.1.1.1, 8.8.8.8).{C_RESET}")
+    except Exception as e:
+        print(f"{C_RED}[!] Konnte /etc/resolv.conf nicht aktualisieren: {e}{C_RESET}")
+
+    # Erneute Prüfung nach kurzer Wartezeit
+    time.sleep(1)
+    for domain in test_domains:
+        try:
+            socket.gethostbyname(domain)
+            print(f"{C_GREEN}[✓] DNS-Auflösung nach Reparatur erfolgreich ({domain}).{C_RESET}")
+            return True
+        except Exception:
+            pass
+
+    # Prüfe ob Default-Gateway vorhanden ist
+    route_check = run_cmd("ip route show default", capture_output=True, check=False)
+    default_gw = route_check.stdout.strip() if route_check.returncode == 0 else ""
+    if not default_gw:
+        print(f"{C_RED}[FEHLER] Kein Standard-Gateway im LXC Container konfiguriert!{C_RESET}")
+        print(f"{C_YELLOW}Hinweis: Führen Sie auf dem Proxmox Host aus:{C_RESET}")
+        print(f"  pct set <CTID> -nameserver '192.168.0.1 8.8.8.8'")
+        print(f"Oder im Container:{C_RESET}")
+        print(f"  ip route add default via 192.168.0.1 dev eth0")
+    else:
+        print(f"{C_YELLOW}[!] Gateway vorhanden ({default_gw}), aber externe Hostnamen noch unauflösbar.{C_RESET}")
+
+    return False
+
+
 def step_update_system():
     print(f"\n{C_CYAN}[1/6] Aktualisiere Paketquellen & installiere Basis-Pakete...{C_RESET}")
-    run_cmd("apt-get update -y")
+    run_cmd("apt-get update -y", check=False)
     packages = [
         "curl",
         "git",
@@ -113,33 +180,54 @@ def step_update_system():
 
 
 def step_install_nodejs():
-    print(f"\n{C_CYAN}[2/6] Prüfe / Installiere Node.js LTS (NodeSource v22)...{C_RESET}")
-    # Prüfe ob Node.js bereits vorhanden ist
+    print(f"\n{C_CYAN}[2/6] Prüfe / Installiere Node.js LTS (v22 / v20)...{C_RESET}")
     needs_install = True
     if shutil.which("node") and shutil.which("npm"):
         res = run_cmd("node -v", capture_output=True, check=False)
         if res.returncode == 0:
             version_str = res.stdout.strip()
-            print(f"{C_GREEN}[✓] Node.js bereits installiert: {version_str}{C_RESET}")
-            # Falls Node >= 20, behalten
+            print(f"{C_GREEN}[✓] Node.js bereits vorhanden: {version_str}{C_RESET}")
             try:
                 major = int(version_str.lstrip("v").split(".")[0])
-                if major >= 20:
+                if major >= 18:
                     needs_install = False
             except ValueError:
                 pass
 
     if needs_install:
-        print(f"{C_YELLOW}[*] Richte offizielles NodeSource Repository für Node 22 ein...{C_RESET}")
+        nodesource_success = False
+        print(f"{C_YELLOW}[*] Versuche offizielles NodeSource Repository für Node 22 einzurichten...{C_RESET}")
         run_cmd("mkdir -p /etc/apt/keyrings")
-        run_cmd("curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg --yes")
-        run_cmd('echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" > /etc/apt/sources.list.d/nodesource.list')
-        run_cmd("apt-get update -y")
-        run_cmd("apt-get install -y nodejs")
+        
+        # Sicherer curl Download mit Verbindungstimeout (kein unkontrollierter Abbruch)
+        curl_key_res = run_cmd("curl -fsSL --connect-timeout 6 https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg --yes", check=False)
+        if curl_key_res.returncode == 0:
+            run_cmd('echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" > /etc/apt/sources.list.d/nodesource.list')
+            update_res = run_cmd("apt-get update -y", check=False)
+            if update_res.returncode == 0:
+                install_res = run_cmd("apt-get install -y nodejs", check=False)
+                if install_res.returncode == 0:
+                    nodesource_success = True
+                    print(f"{C_GREEN}[✓] Node.js 22 via NodeSource erfolgreich installiert.{C_RESET}")
 
-    res_node = run_cmd("node -v", capture_output=True)
-    res_npm = run_cmd("npm -v", capture_output=True)
-    print(f"{C_GREEN}[✓] Node: {res_node.stdout.strip()} | NPM: {res_npm.stdout.strip()}{C_RESET}")
+        if not nodesource_success:
+            print(f"{C_YELLOW}[!] NodeSource Repository war nicht erreichbar oder schlug fehl.{C_RESET}")
+            print(f"{C_YELLOW}[*] Fallback: Installiere Node.js & npm aus offiziellem Debian/Ubuntu Repository...{C_RESET}")
+            # Bereinige etwaige unvollständige NodeSource sources-list
+            if os.path.exists("/etc/apt/sources.list.d/nodesource.list"):
+                try:
+                    os.remove("/etc/apt/sources.list.d/nodesource.list")
+                except Exception:
+                    pass
+            run_cmd("apt-get update -y", check=False)
+            run_cmd("apt-get install -y nodejs npm", check=True)
+            print(f"{C_GREEN}[✓] Node.js & npm aus Standard-Paketquellen erfolgreich installiert.{C_RESET}")
+
+    res_node = run_cmd("node -v", capture_output=True, check=False)
+    res_npm = run_cmd("npm -v", capture_output=True, check=False)
+    node_str = res_node.stdout.strip() if res_node.returncode == 0 else "unbekannt"
+    npm_str = res_npm.stdout.strip() if res_npm.returncode == 0 else "unbekannt"
+    print(f"{C_GREEN}[✓] Node: {node_str} | NPM: {npm_str}{C_RESET}")
 
 
 def step_setup_app_source(repo_url=None):
@@ -297,11 +385,14 @@ def main():
 
     parser = argparse.ArgumentParser(description="Solar-Lokal App Installer für Proxmox LXC")
     parser.add_argument("--port", type=int, default=80, help="Webserver Port (Standard: 80)")
-    parser.add_argument("--repo", type=str, default=None, help="Git Repository URL zum Klonen (optional)")
+    parser.add_argument("--repo", type=str, default="https://github.com/Perspektivlos/Solar-App.git", help="Git Repository URL zum Klonen (Standard: Perspektivlos/Solar-App.git)")
     parser.add_argument("--skip-build", action="store_true", help="Überspringt den 'npm run build' Schritt")
     args = parser.parse_args()
 
     local_ip = get_local_ip()
+
+    # 0. Netzwerk & DNS prüfen / reparieren
+    check_and_heal_dns()
 
     # 1. System aktualisieren
     step_update_system()

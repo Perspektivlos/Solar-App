@@ -100,13 +100,14 @@ def create_proxmox_instance():
     print(f" Erstelle Proxmox LXC Container {CT_ID} ({HOSTNAME})")
     print("==================================================")
     
-    # 1. Container anlegen
+    # 1. Container anlegen (inkl. DNS-Nameserver für unterbrechungsfreie Internetauflösung)
     create_cmd = (
         f"pct create {CT_ID} {TEMPLATE} "
         f"--hostname {HOSTNAME} "
         f"--memory {MEMORY_MB} "
         f"--cores {CORES} "
         f"--net0 name=eth0,bridge={BRIDGE},ip={IP_ADDR},gw={GATEWAY} "
+        f"--nameserver '192.168.0.1 8.8.8.8' "
         f"--storage {STORAGE} "
         f"--rootfs {STORAGE}:{DISK_SIZE} "
         f"--onboot 1 "
@@ -117,6 +118,9 @@ def create_proxmox_instance():
     if not run_cmd(create_cmd):
         print("[!] Instanzerstellung fehlgeschlagen.")
         sys.exit(1)
+        
+    # Sicherstellen, dass Nameserver persistent verankert ist
+    run_cmd(f"pct set {CT_ID} -nameserver '192.168.0.1 8.8.8.8'")
         
     # 2. Container starten
     print(f"[*] Starte Container {CT_ID}...")
@@ -136,7 +140,7 @@ if __name__ == "__main__":
 """
 ==============================================================================
 Solar-Lokal-App - App & Service Installation (Python Script 2/2)
-Installiert Node.js 20, Git, klont das Repository, baut die App
+Installiert Node.js, Git, klont das Repository, baut die App
 und richtet den systemd-Hintergrundservice ein.
 ==============================================================================
 """
@@ -147,7 +151,7 @@ import time
 
 CT_ID = 105
 APP_DIR = "/opt/solar-lokal"
-REPO_URL = "https://github.com/Perspektivlos/Solar-Lokal-App.git"
+REPO_URL = "https://github.com/Perspektivlos/Solar-App.git"
 WEB_PORT = 3000
 
 def exec_in_container(cmd):
@@ -163,10 +167,14 @@ def install_application():
     print(f" Installiere Solar-Lokal-App in Container {CT_ID}")
     print("==================================================")
     
-    # 1. Basis-Pakete & NodeSource Node.js 20 LTS
-    print("[*] 1/4 Installiere Systempakete & Node.js 20...")
+    # 0. DNS-Nameserver sicherstellen falls /etc/resolv.conf leer ist
+    print("[*] 0/4 Prüfe DNS-Konfiguration im Container...")
+    exec_in_container('grep -q "nameserver" /etc/resolv.conf || echo -e "nameserver 192.168.0.1\\nnameserver 8.8.8.8" > /etc/resolv.conf')
+
+    # 1. Basis-Pakete & NodeSource Node.js LTS (mit Debian-Fallback)
+    print("[*] 1/4 Installiere Systempakete & Node.js...")
     exec_in_container("apt-get update && apt-get install -y curl git mosquitto-clients build-essential")
-    exec_in_container("curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs")
+    exec_in_container("(curl -fsSL --connect-timeout 6 https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs) || apt-get install -y nodejs npm")
     
     # 2. Repository klonen und bauen
     print("[*] 2/4 Klone Solar-Lokal-App und installiere npm dependencies...")
@@ -221,6 +229,7 @@ DISK_SIZE=8G
 BRIDGE="vmbr0"
 IP_ADDR="192.168.0.205/24"
 GATEWAY="192.168.0.1"
+NAMESERVER="192.168.0.1 8.8.8.8"
 
 echo "=== Erstelle Solar-Lokal LXC Container $CTID ==="
 pct create $CTID /var/lib/vz/template/cache/debian-12-standard_12.2-1_amd64.tar.zst \\
@@ -228,20 +237,24 @@ pct create $CTID /var/lib/vz/template/cache/debian-12-standard_12.2-1_amd64.tar.
   --memory $MEMORY \\
   --cores $CORES \\
   --net0 name=eth0,bridge=$BRIDGE,ip=$IP_ADDR,gw=$GATEWAY \\
+  --nameserver "$NAMESERVER" \\
   --storage local-lvm \\
   --rootfs local-lvm:$DISK_SIZE \\
   --onboot 1 \\
   --unprivileged 1
 
+pct set $CTID -nameserver "$NAMESERVER"
+
 echo "=== Starte Container und installiere Node.js & Git ==="
 pct start $CTID
 sleep 4
 
+pct exec $CTID -- bash -c "grep -q 'nameserver' /etc/resolv.conf || echo -e 'nameserver 192.168.0.1\\nnameserver 8.8.8.8' > /etc/resolv.conf"
 pct exec $CTID -- bash -c "apt-get update && apt-get install -y curl git mosquitto-clients"
-pct exec $CTID -- bash -c "curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs"
+pct exec $CTID -- bash -c "(curl -fsSL --connect-timeout 6 https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs) || apt-get install -y nodejs npm"
 
-echo "=== Clone Solar-Lokal-App Repository ==="
-pct exec $CTID -- bash -c "git clone https://github.com/Perspektivlos/Solar-Lokal-App.git /opt/solar-lokal"
+echo "=== Clone Solar-App Repository ==="
+pct exec $CTID -- bash -c "git clone https://github.com/Perspektivlos/Solar-App.git /opt/solar-lokal"
 pct exec $CTID -- bash -c "cd /opt/solar-lokal && npm install && npm run build"
 
 echo "=== Systemd Service für automatischen Start einrichten ==="
