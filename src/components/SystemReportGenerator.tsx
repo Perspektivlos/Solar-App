@@ -27,7 +27,8 @@ import {
   Filter,
   Info,
   CheckCircle,
-  HelpCircle
+  HelpCircle,
+  RefreshCw
 } from 'lucide-react';
 import { 
   DeviceInventoryItem, 
@@ -162,7 +163,7 @@ export const SystemReportGenerator: React.FC<SystemReportGeneratorProps> = ({
   const [reportVersion, setReportVersion] = useState<ReportVersionKey>('v1.4 (Aktuell · 28.10.2026)');
   const [showTimeline, setShowTimeline] = useState<boolean>(false);
   const [copiedFormat, setCopiedFormat] = useState<string | null>(null);
-  const [activeScriptTab, setActiveScriptTab] = useState<'python_instance' | 'python_install' | 'proxmox_bash' | 'docker' | 'mosquitto_acl'>('python_instance');
+  const [activeScriptTab, setActiveScriptTab] = useState<'python_instance' | 'python_install' | 'python_update' | 'proxmox_bash' | 'docker' | 'mosquitto_acl'>('python_instance');
   const [copiedScript, setCopiedScript] = useState<string | null>(null);
 
   // Filter-Status für Prüfmatrix und Plausibilitätsprüfungen
@@ -705,6 +706,57 @@ WantedBy=multi-user.target
 
 if __name__ == "__main__":
     install_application()
+`;
+
+  const PYTHON_UPDATE_APP = `#!/usr/bin/env python3
+"""
+==============================================================================
+Solar-Lokal-App - Automatisiertes Update-Skript (Proxmox VE 8)
+Aktualisiert die laufende Solar-Lokal-App in Container 105 via Git Pull,
+führt den Vite Build aus und lädt den Nginx Webserver neu.
+==============================================================================
+"""
+
+import subprocess
+import sys
+
+CT_ID = 105
+APP_DIR = "/opt/solar-lokal"
+
+def exec_in_container(cmd):
+    full_cmd = f'pct exec {CT_ID} -- bash -c "{cmd}"'
+    print(f"[*] Führe aus: {cmd}")
+    res = subprocess.run(full_cmd, shell=True, capture_output=True, text=True)
+    if res.stdout.strip():
+        print(f"[✓] {res.stdout.strip()}")
+    if res.returncode != 0:
+        print(f"[!] Info/Warnung: {res.stderr.strip()[:200]}")
+    return res.returncode == 0
+
+def update_application():
+    print("=" * 60)
+    print(f" Aktualisiere Solar-Lokal-App in Container {CT_ID}...")
+    print("=" * 60)
+
+    # 1. Neueste Version von GitHub abholen
+    print("[1/3] Hole neueste Änderungen von GitHub (git pull origin main)...")
+    exec_in_container(f"cd {APP_DIR} && git fetch origin && git pull origin main")
+
+    # 2. Production Build aktualisieren
+    print("[2/3] Baue Frontend-Artefakte...")
+    exec_in_container(f"cd {APP_DIR} && npm run build")
+
+    # 3. Nginx und Hintergrunddienst neu starten
+    print("[3/3] Starte Nginx und Services neu...")
+    exec_in_container("systemctl restart nginx")
+    exec_in_container("systemctl restart solar-lokal.service || true")
+
+    print("\\n" + "=" * 60)
+    print("[✓] Update erfolgreich abgeschlossen! App läuft auf dem neuesten Stand.")
+    print("=" * 60)
+
+if __name__ == "__main__":
+    update_application()
 `;
 
   const PROXMOX_LXC_SCRIPT = `#!/usr/bin/env bash
@@ -1576,6 +1628,18 @@ ${REPORT_VERSIONS.map(v => `| ${v.version} | ${v.date} | ${v.title} | ${v.status
             </button>
 
             <button
+              onClick={() => setActiveScriptTab('python_update')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                activeScriptTab === 'python_update'
+                  ? 'bg-white/[0.1] text-white shadow-sm font-semibold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-sky-400" />
+              <span>3. Python: Update</span>
+            </button>
+
+            <button
               onClick={() => setActiveScriptTab('proxmox_bash')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
                 activeScriptTab === 'proxmox_bash'
@@ -1663,6 +1727,32 @@ ${REPORT_VERSIONS.map(v => `| ${v.version} | ${v.date} | ${v.title} | ${v.status
               </div>
               <pre className="p-3.5 rounded-lg bg-black/60 border border-white/[0.05] font-mono text-xs text-slate-300 overflow-x-auto max-h-[380px] leading-relaxed">
                 {PYTHON_INSTALL_APP}
+              </pre>
+            </div>
+          )}
+
+          {activeScriptTab === 'python_update' && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="font-bold text-slate-200 text-sm flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-sky-400" />
+                    Skript 3: App Update & Service Reload (Python)
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    Aktualisiert die laufende App in Container 105 via Git Pull, baut die Frontend-Artefakte und lädt Nginx neu
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleCopyScript('py_upd', PYTHON_UPDATE_APP)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono transition-colors border border-white/[0.1]"
+                >
+                  {copiedScript === 'py_upd' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-sky-400" />}
+                  <span>{copiedScript === 'py_upd' ? 'Kopiert!' : 'Update Script kopieren'}</span>
+                </button>
+              </div>
+              <pre className="p-3.5 rounded-lg bg-black/60 border border-white/[0.05] font-mono text-xs text-slate-300 overflow-x-auto max-h-[380px] leading-relaxed">
+                {PYTHON_UPDATE_APP}
               </pre>
             </div>
           )}

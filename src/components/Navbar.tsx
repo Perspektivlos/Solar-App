@@ -15,7 +15,8 @@ import {
   Wrench, 
   HelpCircle,
   Clock,
-  Sparkles
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 import { DeviceBadge } from './DeviceBadge';
@@ -32,6 +33,7 @@ interface NavbarProps {
   deviceInfo: DeviceInfo;
   onOpenDeviceSettings: () => void;
   backendInfo?: { isOnline: boolean; isLiveLAN: boolean };
+  onOpenUpdateModal?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -44,7 +46,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   lastTickTime,
   deviceInfo,
   onOpenDeviceSettings,
-  backendInfo
+  backendInfo,
+  onOpenUpdateModal
 }) => {
   const tabs = [
     { id: 'dashboard', label: 'Steuerzentrale', icon: Zap, keyNumber: '1' },
@@ -149,6 +152,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             <HelpCircle className="w-3.5 h-3.5 text-sky-400" />
             <span className="hidden sm:inline">Diagnose / Herkunft</span>
           </button>
+
+          {/* App Update Manager Trigger */}
+          {onOpenUpdateModal && (
+            <button
+              onClick={onOpenUpdateModal}
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded bg-sky-500/10 text-sky-300 border border-sky-500/30 hover:bg-sky-500/20 text-xs transition-all font-mono"
+              title="App auf Updates prüfen & aktualisieren"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-sky-400" />
+              <span className="hidden sm:inline">Update</span>
+            </button>
+          )}
 
           {/* PWA Mobile App Install Button / Status */}
           <PWAInstallButton onOpenDetails={onOpenPWAInfo} />

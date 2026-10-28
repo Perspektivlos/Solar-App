@@ -43,6 +43,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { useDeviceDetection } from './hooks/useDeviceDetection';
 import { DeviceSettingsModal } from './components/DeviceSettingsModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { AppUpdateModal } from './components/AppUpdateModal';
 
 export default function App() {
   const deviceInfo = useDeviceDetection();
@@ -63,6 +64,7 @@ export default function App() {
   const [whyMetric, setWhyMetric] = useState<'pv' | 'battery' | 'grid' | 'house'>('pv');
   const [pwaModalOpen, setPwaModalOpen] = useState<boolean>(false);
   const [deviceSettingsOpen, setDeviceSettingsOpen] = useState<boolean>(false);
+  const [updateModalOpen, setUpdateModalOpen] = useState<boolean>(false);
   const [lastTickTime, setLastTickTime] = useState<string>('14:32:45');
   const [backendInfo, setBackendInfo] = useState<{
     isOnline: boolean;
@@ -391,6 +393,7 @@ export default function App() {
         deviceInfo={deviceInfo}
         onOpenDeviceSettings={() => setDeviceSettingsOpen(true)}
         backendInfo={backendInfo}
+        onOpenUpdateModal={() => setUpdateModalOpen(true)}
       />
 
       {/* Ambient Wall-Mount Kiosk Alert Banner if WakeLock is active */}
@@ -549,6 +552,7 @@ export default function App() {
             onUpdateLimit={handleUpdateLimit}
             onToggleZeroExport={handleToggleZeroExport}
             onNavigateToReport={() => setActiveTab('report')}
+            onOpenUpdateModal={() => setUpdateModalOpen(true)}
           />
         )}
 
@@ -622,6 +626,13 @@ export default function App() {
           onOpenDeviceSettings={() => setDeviceSettingsOpen(true)}
         />
       )}
+
+      {/* App Update & Maintenance Modal */}
+      <AppUpdateModal
+        isOpen={updateModalOpen}
+        onClose={() => setUpdateModalOpen(false)}
+        currentVersion="v1.4.0"
+      />
 
       {/* Offline Toast Indicator */}
       <OfflineIndicator />

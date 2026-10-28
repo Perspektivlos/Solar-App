@@ -27,13 +27,15 @@ interface ControlAndScriptsProps {
   onUpdateLimit: (type: 'trucki' | 'hoymiles', value: number) => void;
   onToggleZeroExport: () => void;
   onNavigateToReport?: () => void;
+  onOpenUpdateModal?: () => void;
 }
 
 export const ControlAndScripts: React.FC<ControlAndScriptsProps> = ({
   telemetry,
   onUpdateLimit,
   onToggleZeroExport,
-  onNavigateToReport
+  onNavigateToReport,
+  onOpenUpdateModal
 }) => {
   const [activeTab, setActiveTab] = useState<'integrations' | 'control' | 'mqtt_acl'>('integrations');
   
@@ -206,6 +208,17 @@ topic write venus/pv/ahoydtu/+/cmd/#
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
               <span>Mosquitto ACL</span>
             </button>
+
+            {onOpenUpdateModal && (
+              <button
+                onClick={onOpenUpdateModal}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 transition-all font-semibold"
+                title="App auf Updates prüfen & aktualisieren"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-sky-400" />
+                <span>App-Update</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
