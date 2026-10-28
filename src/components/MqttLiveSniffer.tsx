@@ -30,7 +30,7 @@ const DEFAULT_PRESETS: MqttPublishPreset[] = [
     id: 't2sg-acsetpointovr',
     name: 'T2SG Inverter-Leistung manuell setzen (Override)',
     targetDevice: 'Trucki2Shelly Gateway (T2SG v1.15)',
-    topic: 'T2SG/ACSETPOINTOVR',
+    topic: 'TRUCKI/ACSETPOINTOVR',
     payload: '350',
     qos: 0,
     retain: false,
@@ -40,7 +40,7 @@ const DEFAULT_PRESETS: MqttPublishPreset[] = [
     id: 't2sg-meterovr',
     name: 'T2SG Externer Smartmeter-Messwert (MQTT)',
     targetDevice: 'Trucki2Shelly Gateway (T2SG v1.15)',
-    topic: 'T2SG/METEROVR',
+    topic: 'TRUCKI/METEROVR',
     payload: '185',
     qos: 0,
     retain: false,
@@ -50,7 +50,7 @@ const DEFAULT_PRESETS: MqttPublishPreset[] = [
     id: 't2sg-zepcovr',
     name: 'T2SG Nulleinspeisung Ein-/Ausschalten',
     targetDevice: 'Trucki2Shelly Gateway (T2SG v1.15)',
-    topic: 'T2SG/ZEPCOVR',
+    topic: 'TRUCKI/ZEPCOVR',
     payload: '1',
     qos: 0,
     retain: false,
@@ -60,7 +60,7 @@ const DEFAULT_PRESETS: MqttPublishPreset[] = [
     id: 't2sg-targetovr',
     name: 'T2SG ZEPC-Zielwert anpassen (Offset)',
     targetDevice: 'Trucki2Shelly Gateway (T2SG v1.15)',
-    topic: 'T2SG/TARGETOVR',
+    topic: 'TRUCKI/TARGETOVR',
     payload: '15',
     qos: 0,
     retain: false,
@@ -70,17 +70,17 @@ const DEFAULT_PRESETS: MqttPublishPreset[] = [
     id: 't2sg-maxpowerovr',
     name: 'T2SG Max-Leistung drosseln / freigeben',
     targetDevice: 'Trucki2Shelly Gateway (T2SG v1.15)',
-    topic: 'T2SG/MAXPOWEROVR',
+    topic: 'TRUCKI/MAXPOWEROVR',
     payload: '800',
     qos: 0,
     retain: false,
-    description: 'Begrenzt die maximale Ausgangsleistung des Inverters dynamisch (z. B. 800 W BKW-Limit oder 1800 W Volllast).'
+    description: 'Begrenzt die maximale Ausgangsleistung des Inverters dynamisch (z. B. 800 W BKW-Limit oder 2000 W Volllast beim SUN-2000G2-H).'
   },
   {
     id: 't2sg-rebootovr',
     name: 'T2SG Gateway Neustart auslösen',
     targetDevice: 'Trucki2Shelly Gateway (T2SG v1.15)',
-    topic: 'T2SG/REBOOTOVR',
+    topic: 'TRUCKI/REBOOTOVR',
     payload: 'REBOOTOVR',
     qos: 0,
     retain: false,
@@ -213,9 +213,9 @@ export const MqttLiveSniffer: React.FC = () => {
         id: 'msg-seed-3',
         timestamp: new Date(now - 5600).toLocaleTimeString('de-DE', { hour12: false }) + '.115',
         timeMs: now - 5600,
-        topic: 'T2SG/ACDISPLAY',
-        payload: { value: 595, unit: 'W', inverter: 'SUN-G2' },
-        rawPayload: '{"value": 595, "unit": "W", "inverter": "SUN-G2"}',
+        topic: 'TRUCKI/ACDISPLAY',
+        payload: { value: 595, unit: 'W', inverter: 'SUN-2000G2-H' },
+        rawPayload: '{"value": 595, "unit": "W", "inverter": "SUN-2000G2-H"}',
         qos: 0,
         retain: false,
         direction: 'in',
@@ -226,7 +226,7 @@ export const MqttLiveSniffer: React.FC = () => {
         id: 'msg-seed-3b',
         timestamp: new Date(now - 5100).toLocaleTimeString('de-DE', { hour12: false }) + '.320',
         timeMs: now - 5100,
-        topic: 'T2SG/VBAT',
+        topic: 'TRUCKI/VBAT',
         payload: { value: 52.84, unit: 'V', cutoff: 48.0, reboot: 52.0 },
         rawPayload: '{"value": 52.84, "unit": "V", "cutoff": 48.0, "reboot": 52.0}',
         qos: 0,
@@ -239,7 +239,7 @@ export const MqttLiveSniffer: React.FC = () => {
         id: 'msg-seed-3c',
         timestamp: new Date(now - 4800).toLocaleTimeString('de-DE', { hour12: false }) + '.710',
         timeMs: now - 4800,
-        topic: 'T2SG/ZEPC',
+        topic: 'TRUCKI/ZEPC',
         payload: { zepc_state: 1, mode: 'Auto-Zero-Export', target_watts: 0 },
         rawPayload: '{"zepc_state": 1, "mode": "Auto-Zero-Export", "target_watts": 0}',
         qos: 0,
@@ -326,7 +326,7 @@ export const MqttLiveSniffer: React.FC = () => {
         () => {
           const sp = Math.round(580 + (Math.random() * 30 - 15));
           return {
-            topic: 'T2SG/ACDISPLAY',
+            topic: 'TRUCKI/ACDISPLAY',
             source: 'Trucki2Shelly Gateway',
             qos: 0 as const,
             retain: false,
@@ -336,7 +336,7 @@ export const MqttLiveSniffer: React.FC = () => {
         () => {
           const vbat = Number((52.8 + (Math.random() * 0.1 - 0.05)).toFixed(2));
           return {
-            topic: 'T2SG/VBAT',
+            topic: 'TRUCKI/VBAT',
             source: 'Trucki2Shelly Gateway',
             qos: 0 as const,
             retain: false,
@@ -346,7 +346,7 @@ export const MqttLiveSniffer: React.FC = () => {
         () => {
           const meterW = Math.round(140 + (Math.random() * 20 - 10));
           return {
-            topic: 'T2SG/METER',
+            topic: 'TRUCKI/METER',
             source: 'Trucki2Shelly Gateway',
             qos: 0 as const,
             retain: false,
@@ -356,7 +356,7 @@ export const MqttLiveSniffer: React.FC = () => {
         () => {
           const temp = Number((38.8 + (Math.random() * 0.8 - 0.4)).toFixed(1));
           return {
-            topic: 'T2SG/TEMPERATURE',
+            topic: 'TRUCKI/TEMPERATURE',
             source: 'Trucki2Shelly Gateway',
             qos: 0 as const,
             retain: false,

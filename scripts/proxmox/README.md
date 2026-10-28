@@ -43,7 +43,7 @@ python3 create_proxmox_lxc.py --vmid 150 --hostname solar-lokal --memory 1024 --
 - `--disk <gb>`: Festplattengröße in GB (Standard: `10`)
 - `--storage <pool>`: Proxmox Storage Pool (z.B. `local-lvm`, `local-zfs`)
 - `--bridge <name>`: Netzwerk-Bridge (Standard: `vmbr0`)
-- `--ip <ip>`: Netzwerk (z.B. `dhcp` oder statisch `192.168.178.50/24`)
+- `--ip <ip>`: Netzwerk (z.B. `dhcp` oder statisch `192.168.0.222/24`, aktuelle Adresse der Solar-App)
 - `--gw <gateway>`: Gateway bei statischer IP (z.B. `192.168.178.1`)
 - `--auto-install`: Startet direkt nach Container-Boot die App-Installation!
 

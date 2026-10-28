@@ -1,5 +1,8 @@
+import 'dotenv/config';
 import express from 'express';
 import http from 'http';
+import net from 'net';
+import fs from 'fs';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -342,11 +345,12 @@ function initMqttClient() {
 // ==============================================================================
 // In-Memory Telemetry State & Diagnostics
 // ==============================================================================
+type SourceState = 'live' | 'simulated' | 'offline';
 interface LiveSourceStatus {
-  shelly: 'live' | 'simulated' | 'offline';
-  ahoy: 'live' | 'simulated' | 'offline';
-  trucki: 'live' | 'simulated' | 'offline';
-  venus: 'live' | 'simulated' | 'offline';
+  shelly: SourceState;
+  ahoy: SourceState;
+  trucki: SourceState;
+  venus: SourceState;
 }
 
 interface DeviceDiagnostic {
@@ -417,6 +421,19 @@ let cachedTelemetry = {
   selfConsumptionPercent: 0,
 };
 
+// Zeitpunkt der letzten echten Daten je Quelle
+const lastSeen: Record<keyof LiveSourceStatus, number> = { shelly: 0, ahoy: 0, trucki: 0, venus: 0 };
+const isFresh = (k: keyof LiveSourceStatus) => Date.now() - lastSeen[k] < STALE_MS;
+
+const num = (v: unknown): number | undefined => {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string') {
+    const n = parseFloat(v.replace(',', '.'));
+    return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined;
+};
+
 // ==============================================================================
 // LAN Poller & Strict Hardware Data Collector
 // ==============================================================================
@@ -424,12 +441,9 @@ async function fetchWithTimeout(url: string, timeoutMs: number = 1000): Promise<
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    return await fetch(url, { signal: controller.signal });
+  } finally {
     clearTimeout(id);
-    return response;
-  } catch (err) {
-    clearTimeout(id);
-    throw err;
   }
 }
 
@@ -514,6 +528,8 @@ async function updateLANTelemetry() {
   } else {
     deviceDiagnostics.shelly.status = 'disabled';
   }
+  return fallback;
+}
 
   // 2. AhoyDTU (Hoymiles HM-1500) Abfrage
   const ahoyCfg = hardwareConfig.devices.ahoy;
@@ -560,6 +576,8 @@ async function updateLANTelemetry() {
   } else {
     deviceDiagnostics.ahoy.status = 'disabled';
   }
+  lastSeen.ahoy = Date.now();
+}
 
   // 3. Trucki2Shelly Gateway Abfrage
   const truckiCfg = hardwareConfig.devices.trucki;
@@ -590,6 +608,8 @@ async function updateLANTelemetry() {
   } else {
     deviceDiagnostics.trucki.status = 'disabled';
   }
+  if (seen) lastSeen.trucki = Date.now();
+}
 
   // 4. Venus OS Abfrage
   const venusCfg = hardwareConfig.devices.venus;
@@ -619,6 +639,7 @@ async function updateLANTelemetry() {
   } else {
     deviceDiagnostics.venus.status = 'disabled';
   }
+}
 
   // Wenn mindestens ein Gerät live antwortet: Berechne reale Summen
   if (liveCount > 0) {
@@ -661,6 +682,7 @@ async function updateLANTelemetry() {
     cachedTelemetry.batteryWatts = 0;
     cachedTelemetry.houseTotalWatts = 0;
   }
+}
 
   const isMqttFresh = Boolean(
     mqttStatus.connected && 
@@ -682,7 +704,7 @@ async function updateLANTelemetry() {
   }
 }
 
-// Alle 2 Sekunden LAN scannen / Telemetrie aktualisieren
+startMqtt();
 setInterval(updateLANTelemetry, 2000);
 // Direkt beim Starten einmal anstoßen & MQTT Client initialisieren
 updateLANTelemetry().catch(console.error);
@@ -925,36 +947,26 @@ app.post('/api/system/network/ping', async (req, res) => {
 // 2. Health & Host Status (Gesundheits-Ampel für MQTT, Influx, Proxmox, DTU, Trucki)
 app.get('/api/health/hosts', async (_req, res) => {
   const hosts = [
-    { id: 'shelly', name: 'Shelly Pro 3EM', url: 'http://shellypro3em.local', ip: '192.168.0.100', service: 'Smart Meter' },
-    { id: 'ahoy', name: 'AhoyDTU (HM-1500)', url: 'http://ahoy-dtu.local', ip: '192.168.0.101', service: 'Hoymiles Inverter' },
-    { id: 'trucki', name: 'Trucki Gateway', url: 'http://trucki.local', ip: '192.168.0.102', service: 'RS485 Limiter' },
-    { id: 'venus', name: 'Venus OS', url: 'http://venus.local', ip: '192.168.0.111', service: 'Victron MPPTs' },
-    { id: 'proxmox', name: 'Proxmox Hypervisor', url: 'https://192.168.0.200:8006', ip: '192.168.0.200', service: 'LXC Host' },
-    { id: 'mqtt', name: 'Mosquitto Broker', url: 'http://192.168.0.201:1883', ip: '192.168.0.201', service: 'MQTT:1883' },
-    { id: 'influxdb', name: 'InfluxDB v2', url: 'http://192.168.0.203:8086/health', ip: '192.168.0.203', service: 'Time-Series DB' },
+    { id: 'shelly', name: 'Shelly Pro 3EM', ip: '192.168.0.100', port: 80, service: 'Smart Meter' },
+    { id: 'ahoy', name: 'AhoyDTU (HM-1500)', ip: '192.168.0.101', port: 80, service: 'Hoymiles Inverter' },
+    { id: 'trucki', name: 'Trucki Gateway (T2SG)', ip: '192.168.0.102', port: 80, service: 'SUN-2000G2-H Regelung' },
+    { id: 'venus', name: 'Venus OS', ip: '192.168.0.111', port: 80, service: 'Victron MPPTs' },
+    { id: 'proxmox', name: 'Proxmox VE', ip: '192.168.0.200', port: 8006, service: 'LXC Host' },
+    { id: 'mqtt', name: 'Mosquitto Broker (TLS)', ip: '192.168.0.201', port: 8883, service: 'MQTTS:8883' },
+    { id: 'grafana', name: 'Grafana', ip: '192.168.0.202', port: 3000, service: 'Dashboards' },
+    { id: 'influxdb', name: 'InfluxDB 2.x', ip: '192.168.0.203', port: 8086, service: 'Time-Series DB' },
+    { id: 'app', name: 'Solar-App (LXC)', ip: '192.168.0.222', port: 80, service: 'Web-UI & REST API' },
   ];
 
   const results = await Promise.all(
     hosts.map(async (h) => {
-      const start = Date.now();
-      let reachable = false;
-      let latencyMs = 0;
-      try {
-        const testRes = await fetchWithTimeout(h.url, 600);
-        latencyMs = Date.now() - start;
-        reachable = testRes.status < 500;
-      } catch {
-        // Fallback Ping Sim bei isolierter Cloud-Umgebung
-        latencyMs = Math.round((Math.random() * 3 + 0.8) * 10) / 10;
-        reachable = cachedTelemetry.isLive; // Zeigt echten Status im lokalen LAN
-      }
-
+      const latencyMs = await tcpProbe(h.ip, h.port);
       return {
         id: h.id,
         name: h.name,
         ip: h.ip,
         service: h.service,
-        status: reachable ? 'Online' : 'Offline',
+        status: latencyMs !== null ? 'Online' : 'Offline',
         latencyMs,
         lastChecked: new Date().toISOString(),
       };
@@ -964,19 +976,27 @@ app.get('/api/health/hosts', async (_req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    isLanOnline: cachedTelemetry.isLive,
+    isLanOnline: cachedTelemetry.isPartiallyLive,
+    mqttConnected,
     hosts: results,
   });
 });
 
-// 3. Sollwert-Vorgabe (Trucki Limiter & Zero-Export Control)
+// 3. Leistungsgrenze SUN-2000G2-H ueber T2SG (MQTT: <Prefix>/MAXPOWEROVR)
 app.post('/api/control/limit', (req, res) => {
-  const { limitWatts, zeroExportEnabled } = req.body;
+  const { limitWatts, zeroExportEnabled } = req.body ?? {};
+  let sentToDevice = false;
 
-  if (typeof limitWatts === 'number') {
-    cachedTelemetry.truckiPowerLimitWatts = Math.max(0, Math.min(1800, Math.round(limitWatts)));
+  if (typeof limitWatts === 'number' && Number.isFinite(limitWatts)) {
+    const w = Math.max(0, Math.min(LAN_CONFIG.sunMaxWatts, Math.round(limitWatts)));
+    cachedTelemetry.truckiPowerLimitWatts = w;
+    if (mqttClient && mqttConnected) {
+      mqttClient.publish(`${LAN_CONFIG.truckiTopicPrefix}/MAXPOWEROVR`, String(w));
+      sentToDevice = true;
+    }
   }
   if (typeof zeroExportEnabled === 'boolean') {
+    // Nur Anzeige: ZEPC wird weiterhin am T2SG selbst eingestellt
     cachedTelemetry.truckiZeroExportEnabled = zeroExportEnabled;
   }
 
@@ -984,6 +1004,7 @@ app.post('/api/control/limit', (req, res) => {
     status: 'success',
     appliedLimitWatts: cachedTelemetry.truckiPowerLimitWatts,
     zeroExportEnabled: cachedTelemetry.truckiZeroExportEnabled,
+    sentToDevice,
     timestamp: new Date().toISOString(),
   });
 });
@@ -992,16 +1013,21 @@ app.post('/api/control/limit', (req, res) => {
 app.get('/api/system/info', (_req, res) => {
   res.json({
     app: 'Solar-Lokal-App',
-    version: '1.4.0',
+    version: '1.4.1',
     repository: 'Perspektivlos/Solar-App',
     nodeVersion: process.version,
     uptimeSeconds: Math.floor(process.uptime()),
+    mqtt: { url: MQTT_CONFIG.url, connected: mqttConnected, truckiPrefix: LAN_CONFIG.truckiTopicPrefix },
     lanTopology: {
-      ahoyDtu: 'http://ahoy-dtu.local (192.168.0.101)',
+      ahoyDtu: 'http://ahoydtu.local (192.168.0.101)',
       truckiGateway: 'http://trucki.local (192.168.0.102)',
-      shellyMeter: 'http://shellypro3em.local (192.168.0.100)',
+      shellyMeter: 'http://192.168.0.100',
       venusOs: 'http://venus.local (192.168.0.111)',
       proxmoxNode: '192.168.0.200',
+      mqttBroker: '192.168.0.201',
+      grafana: '192.168.0.202',
+      influxdb: '192.168.0.203',
+      solarApp: 'http://192.168.0.222',
     },
   });
 });
