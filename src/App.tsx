@@ -24,7 +24,9 @@ import {
   INITIAL_MQTT_TOPICS, 
   INITIAL_API_DOCS, 
   INITIAL_CHANGELOG, 
-  INITIAL_MAINTENANCE 
+  INITIAL_MAINTENANCE,
+  getAutoEnrichedDevices,
+  getAutoEnrichedHosts
 } from './data/initialData';
 import { Navbar } from './components/Navbar';
 import { SciFiEnergyFlow } from './components/SciFiEnergyFlow';
@@ -41,6 +43,9 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { useDeviceDetection } from './hooks/useDeviceDetection';
 import { DeviceSettingsModal } from './components/DeviceSettingsModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { AppUpdateModal } from './components/AppUpdateModal';
+import { HardwareConfigModal } from './components/HardwareConfigModal';
+import { MqttSettingsModal } from './components/MqttSettingsModal';
 
 export default function App() {
   const deviceInfo = useDeviceDetection();
@@ -53,18 +58,28 @@ export default function App() {
   const [apiDocs] = useState<ApiDoc[]>(INITIAL_API_DOCS);
   const [changeLog, setChangeLog] = useState<ChangeLogEntry[]>(INITIAL_CHANGELOG);
   const [maintenanceLog, setMaintenanceLog] = useState<MaintenanceEntry[]>(INITIAL_MAINTENANCE);
+  const [isEnriched, setIsEnriched] = useState<boolean>(false);
+  const [isAutoDetecting, setIsAutoDetecting] = useState<boolean>(false);
 
   const [isSimulating, setIsSimulating] = useState<boolean>(true);
   const [whyDrawerOpen, setWhyDrawerOpen] = useState<boolean>(false);
   const [whyMetric, setWhyMetric] = useState<'pv' | 'battery' | 'grid' | 'house'>('pv');
   const [pwaModalOpen, setPwaModalOpen] = useState<boolean>(false);
   const [deviceSettingsOpen, setDeviceSettingsOpen] = useState<boolean>(false);
+  const [updateModalOpen, setUpdateModalOpen] = useState<boolean>(false);
+  const [hardwareConfigModalOpen, setHardwareConfigModalOpen] = useState<boolean>(false);
+  const [mqttSettingsModalOpen, setMqttSettingsModalOpen] = useState<boolean>(false);
   const [lastTickTime, setLastTickTime] = useState<string>('14:32:45');
   const [backendInfo, setBackendInfo] = useState<{
     isOnline: boolean;
     isLiveLAN: boolean;
+    liveDevicesCount?: number;
+    strictLiveOnly?: boolean;
+    demoSimulationAllowed?: boolean;
+    telemetrySource?: 'mqtt' | 'http_rest' | 'none';
+    mqttStatus?: { connected: boolean; brokerUrl: string; lastMessageTime: string | null; priority?: string };
     sources?: { shelly: string; ahoy: string; trucki: string; venus: string };
-  }>({ isOnline: true, isLiveLAN: false });
+  }>({ isOnline: true, isLiveLAN: false, strictLiveOnly: true, liveDevicesCount: 0, telemetrySource: 'none' });
 
   // Dynamic polling interval:
   // - In foreground: 2000ms for fluid, responsive real-time updates
@@ -97,6 +112,11 @@ export default function App() {
             setBackendInfo({
               isOnline: true,
               isLiveLAN: Boolean(json.data.isLive),
+              liveDevicesCount: json.data.liveDevicesCount || 0,
+              strictLiveOnly: json.mode?.strictLiveOnly ?? true,
+              demoSimulationAllowed: json.mode?.demoSimulationAllowed ?? false,
+              telemetrySource: json.telemetrySource || 'none',
+              mqttStatus: json.mqttStatus,
               sources: json.data.sources
             });
             return;
@@ -106,38 +126,40 @@ export default function App() {
         // Backend kurzzeitig nicht erreichbar -> Fallback
       }
 
-      // 2. Nahtloser Simulations-Fallback
+      // 2. Nur wenn Demo-Simulation erlaubt ist, clientseitig driften lassen:
       if (isMounted) {
         setBackendInfo(prev => ({ ...prev, isOnline: false, isLiveLAN: false }));
-        setTelemetry(prev => {
-          const pvDrift = Math.floor(Math.random() * 21) - 10;
-          const newPvHoymiles = Math.max(800, Math.min(1450, prev.pvHoymilesWatts + pvDrift));
-          const newTotalPv = newPvHoymiles + prev.pvVictronMppt1Watts + prev.pvVictronMppt2Watts;
-          
-          const houseDrift = Math.floor(Math.random() * 15) - 7;
-          const newHouseTotal = Math.max(700, prev.houseTotalWatts + houseDrift);
+        if (backendInfo.demoSimulationAllowed) {
+          setTelemetry(prev => {
+            const pvDrift = Math.floor(Math.random() * 21) - 10;
+            const newPvHoymiles = Math.max(800, Math.min(1450, prev.pvHoymilesWatts + pvDrift));
+            const newTotalPv = newPvHoymiles + prev.pvVictronMppt1Watts + prev.pvVictronMppt2Watts;
+            
+            const houseDrift = Math.floor(Math.random() * 15) - 7;
+            const newHouseTotal = Math.max(700, prev.houseTotalWatts + houseDrift);
 
-          const neededFromBat = Math.max(0, newHouseTotal - newPvHoymiles);
-          const limitedBatWatts = prev.truckiZeroExportEnabled 
-            ? Math.min(prev.truckiPowerLimitWatts, Math.round(neededFromBat))
-            : 0;
-          const newGridWatts = Math.round(newHouseTotal - newPvHoymiles - limitedBatWatts);
+            const neededFromBat = Math.max(0, newHouseTotal - newPvHoymiles);
+            const limitedBatWatts = prev.truckiZeroExportEnabled 
+              ? Math.min(prev.truckiPowerLimitWatts, Math.round(neededFromBat))
+              : 0;
+            const newGridWatts = Math.round(newHouseTotal - newPvHoymiles - limitedBatWatts);
 
-          const lumentreeDcDraw = limitedBatWatts > 0 ? Math.round(limitedBatWatts / 0.92) : 0;
-          const mpptDcCharge = prev.pvVictronMppt1Watts + prev.pvVictronMppt2Watts;
-          const netBatteryWatts = mpptDcCharge - lumentreeDcDraw;
+            const lumentreeDcDraw = limitedBatWatts > 0 ? Math.round(limitedBatWatts / 0.92) : 0;
+            const mpptDcCharge = prev.pvVictronMppt1Watts + prev.pvVictronMppt2Watts;
+            const netBatteryWatts = mpptDcCharge - lumentreeDcDraw;
 
-          return {
-            ...prev,
-            pvHoymilesWatts: newPvHoymiles,
-            pvTotalWatts: newTotalPv,
-            houseTotalWatts: newHouseTotal,
-            truckiActualOutputWatts: limitedBatWatts,
-            batteryWatts: netBatteryWatts,
-            gridTotalWatts: newGridWatts,
-            gridMode: newGridWatts >= 0 ? 'Bezug' : 'Einspeisung'
-          };
-        });
+            return {
+              ...prev,
+              pvHoymilesWatts: newPvHoymiles,
+              pvTotalWatts: newTotalPv,
+              houseTotalWatts: newHouseTotal,
+              truckiActualOutputWatts: limitedBatWatts,
+              batteryWatts: netBatteryWatts,
+              gridTotalWatts: newGridWatts,
+              gridMode: newGridWatts >= 0 ? 'Bezug' : 'Einspeisung'
+            };
+          });
+        }
       }
     };
 
@@ -263,6 +285,50 @@ export default function App() {
     }
   };
 
+  // Gerätedaten automatisch erkennen und anreichern
+  const handleAutoDetectAndEnrich = () => {
+    setIsAutoDetecting(true);
+    setTimeout(() => {
+      setIsAutoDetecting(false);
+      setIsEnriched(true);
+      setDevices(prev => getAutoEnrichedDevices(prev));
+      setHosts(prev => getAutoEnrichedHosts(prev));
+
+      const newChange: ChangeLogEntry = {
+        id: `chg-${Date.now()}`,
+        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+        device: 'Alle 11 Anlagenkomponenten',
+        parameter: 'GERÄTEDATEN AUTO-DISCOVERY',
+        oldValue: 'Teilweise nicht erfasst',
+        newValue: 'Automatisch erkannt & ergänzt',
+        source: 'Automatisch',
+        detectionType: 'automatisch',
+        userNotes: 'Seriennummern, MAC-Adressen und Firmwarestände via Shelly RPC, Ahoy REST, T2SG & Venus OS automatisch erkannt und ergänzt.'
+      };
+      setChangeLog(prev => [newChange, ...prev]);
+    }, 1200);
+  };
+
+  // Alle Werte auf den unbestätigten Zustand ("nicht erfasst") zurücksetzen
+  const handleResetToUnconfirmed = () => {
+    setIsEnriched(false);
+    setDevices(INITIAL_DEVICES);
+    setHosts(INITIAL_NETWORK_HOSTS);
+
+    const newChange: ChangeLogEntry = {
+      id: `chg-${Date.now()}`,
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      device: 'Alle 11 Anlagenkomponenten',
+      parameter: 'GERÄTEDATEN STATUS',
+      oldValue: 'Automatisch erkannt & ergänzt',
+      newValue: 'Zurückgesetzt auf „nicht erfasst“',
+      source: 'Web-UI',
+      detectionType: 'manuell',
+      userNotes: 'Unbestätigte / erfundene Daten manuell auf reinen Ist-Zustand („nicht erfasst“) zurückgesetzt.'
+    };
+    setChangeLog(prev => [newChange, ...prev]);
+  };
+
   // Handle Limit Update (Trucki or Hoymiles)
   // Slider-Werte gebuendelt ans Backend senden (T2SG MAXPOWEROVR), nicht bei jedem Schritt
   const limitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -357,7 +423,55 @@ export default function App() {
         deviceInfo={deviceInfo}
         onOpenDeviceSettings={() => setDeviceSettingsOpen(true)}
         backendInfo={backendInfo}
+        onOpenUpdateModal={() => setUpdateModalOpen(true)}
+        onOpenHardwareConfig={() => setHardwareConfigModalOpen(true)}
+        onOpenMqttConfig={() => setMqttSettingsModalOpen(true)}
       />
+
+      {/* Live-Telemetrie Statusleiste: MQTT-First mit automatischem HTTP-REST Fallback */}
+      <div className={`border-b px-4 py-2 text-xs flex flex-wrap items-center justify-between gap-2 transition-all ${
+        backendInfo.telemetrySource === 'mqtt'
+          ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200'
+          : backendInfo.telemetrySource === 'http_rest'
+          ? 'bg-amber-950/40 border-amber-500/30 text-amber-200'
+          : 'bg-sky-950/40 border-sky-500/20 text-sky-200'
+      }`}>
+        <div className="flex items-center gap-2">
+          <Radio className={`w-4 h-4 shrink-0 ${backendInfo.telemetrySource === 'mqtt' ? 'text-emerald-400 animate-pulse' : backendInfo.telemetrySource === 'http_rest' ? 'text-amber-400' : 'text-sky-400'}`} />
+          <span>
+            {backendInfo.telemetrySource === 'mqtt' ? (
+              <>
+                <strong className="text-emerald-300">Live-Daten via MQTT:</strong> Verbunden mit Mosquitto Broker auf <code>{backendInfo.mqttStatus?.brokerUrl || '192.168.0.201:1883'}</code> (Push-Events aktiv).
+              </>
+            ) : backendInfo.telemetrySource === 'http_rest' ? (
+              <>
+                <strong className="text-amber-300">HTTP-REST Fallback aktiv:</strong> MQTT-Broker offline oder still – Hub pollt Einzelgeräte direkt (Shelly, Ahoy, Trucki, Venus OS).
+              </>
+            ) : (
+              <>
+                <strong>Reiner Live-Modus aktiv:</strong> Keine künstliche Simulation. Im Proxmox-LXC (192.168.0.220) empfängt dieser Hub echte Live-Werte via MQTT (LXC 201) mit HTTP-Fallback.
+              </>
+            )}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setMqttSettingsModalOpen(true)}
+            className="px-2.5 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-mono text-[11px] transition-all flex items-center gap-1.5"
+            title="Mosquitto Broker Port 1883, Benutzer, Passwort und Topics konfigurieren"
+          >
+            <span>MQTT-Broker (1883)</span>
+          </button>
+          <button
+            onClick={() => setHardwareConfigModalOpen(true)}
+            className="px-2.5 py-1 rounded bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 font-mono text-[11px] transition-all flex items-center gap-1.5"
+            title="Hardware-IPs für HTTP-REST Fallback anpassen"
+          >
+            <span>HTTP-Schnittstellen</span>
+          </button>
+        </div>
+      </div>
 
       {/* Ambient Wall-Mount Kiosk Alert Banner if WakeLock is active */}
       {deviceInfo.wakeLockActive && (
@@ -482,6 +596,14 @@ export default function App() {
           <DeviceInventory
             devices={devices}
             telemetry={telemetry}
+            isEnriched={isEnriched}
+            isAutoDetecting={isAutoDetecting}
+            onAutoDetectAndEnrich={handleAutoDetectAndEnrich}
+            onResetToUnconfirmed={handleResetToUnconfirmed}
+            onOpenMqttConfig={() => setMqttSettingsModalOpen(true)}
+            onOpenHardwareConfig={() => setHardwareConfigModalOpen(true)}
+            mqttStatus={backendInfo.mqttStatus}
+            telemetrySource={backendInfo.telemetrySource}
           />
         )}
 
@@ -493,6 +615,7 @@ export default function App() {
             onAcceptDiscoveredDevice={handleAcceptDiscoveredDevice}
             onIgnoreDiscoveredDevice={handleIgnoreDiscoveredDevice}
             onSimulateScan={handleSimulateScan}
+            onOpenHardwareConfig={() => setHardwareConfigModalOpen(true)}
           />
         )}
 
@@ -511,6 +634,7 @@ export default function App() {
             onUpdateLimit={handleUpdateLimit}
             onToggleZeroExport={handleToggleZeroExport}
             onNavigateToReport={() => setActiveTab('report')}
+            onOpenUpdateModal={() => setUpdateModalOpen(true)}
           />
         )}
 
@@ -584,6 +708,55 @@ export default function App() {
           onOpenDeviceSettings={() => setDeviceSettingsOpen(true)}
         />
       )}
+
+      {/* App Update & Maintenance Modal */}
+      <AppUpdateModal
+        isOpen={updateModalOpen}
+        onClose={() => setUpdateModalOpen(false)}
+        currentVersion="v1.4.0"
+      />
+
+      {/* Hardware Configuration & Ping Diagnostic Modal */}
+      <HardwareConfigModal
+        isOpen={hardwareConfigModalOpen}
+        onClose={() => setHardwareConfigModalOpen(false)}
+        onConfigSaved={() => {
+          fetch('/api/telemetry/live').then(res => res.json()).then(json => {
+            if (json?.data) {
+              setTelemetry(prev => ({ ...prev, ...json.data }));
+              setBackendInfo(prev => ({
+                ...prev,
+                isLiveLAN: Boolean(json.data.isLive),
+                liveDevicesCount: json.data.liveDevicesCount || 0,
+                strictLiveOnly: json.mode?.strictLiveOnly ?? true,
+                demoSimulationAllowed: json.mode?.demoSimulationAllowed ?? false,
+                sources: json.data.sources,
+                telemetrySource: json.telemetrySource || 'none',
+                mqttStatus: json.mqttStatus,
+              }));
+            }
+          }).catch(console.error);
+        }}
+      />
+
+      {/* Mosquitto MQTT Broker Settings Modal */}
+      <MqttSettingsModal
+        isOpen={mqttSettingsModalOpen}
+        onClose={() => setMqttSettingsModalOpen(false)}
+        onConfigSaved={() => {
+          fetch('/api/telemetry/live').then(res => res.json()).then(json => {
+            if (json?.data) {
+              setTelemetry(prev => ({ ...prev, ...json.data }));
+              setBackendInfo(prev => ({
+                ...prev,
+                isLiveLAN: Boolean(json.data.isLive),
+                telemetrySource: json.telemetrySource || 'none',
+                mqttStatus: json.mqttStatus,
+              }));
+            }
+          }).catch(console.error);
+        }}
+      />
 
       {/* Offline Toast Indicator */}
       <OfflineIndicator />

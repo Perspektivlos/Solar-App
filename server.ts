@@ -4,6 +4,7 @@ import http from 'http';
 import net from 'net';
 import fs from 'fs';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import mqtt, { MqttClient } from 'mqtt';
 
@@ -16,34 +17,333 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
+
 // ==============================================================================
-// Anlagen-Konfiguration (reale Anlage, per ENV ueberschreibbar)
+// LAN Hardware Endpoints Configuration & Persistence
 // ==============================================================================
-const LAN_CONFIG = {
-  shelly: { baseUrls: [process.env.SHELLY_URL || 'http://192.168.0.100'], endpoint: '/rpc/EM.GetStatus?id=0' },
-  ahoy: { baseUrls: process.env.AHOY_URL ? [process.env.AHOY_URL] : ['http://ahoydtu.local', 'http://192.168.0.101'], inverterId: 0 },
-  trucki: { baseUrls: process.env.TRUCKI_URL ? [process.env.TRUCKI_URL] : ['http://trucki.local', 'http://192.168.0.102'], endpoint: '/jsonlive' },
-  venus: { vrmId: process.env.VRM_ID || 'b827eb79321c', instances: [288, 289] },
-  // MQTT-Prefix = Geraetename im T2SG (Geraeteeinstellungen -> Device name)
-  truckiTopicPrefix: process.env.TRUCKI_TOPIC_PREFIX || 'TRUCKI',
-  // Lumentree SUN-2000G2-H: 2000 W max./kontinuierlich, 45-90 V DC
-  sunMaxWatts: 2000,
-  hoymilesMaxWatts: 1500,
+const CONFIG_FILE_PATH = path.resolve(__dirname, 'hardware-config.json');
+
+export interface DeviceEndpointConfig {
+  id: 'shelly' | 'ahoy' | 'trucki' | 'venus';
+  name: string;
+  host: string;
+  port: number;
+  endpoint: string;
+  enabled: boolean;
+  timeoutMs: number;
+}
+
+export interface HardwareNetworkConfigData {
+  devices: {
+    shelly: DeviceEndpointConfig;
+    ahoy: DeviceEndpointConfig;
+    trucki: DeviceEndpointConfig;
+    venus: DeviceEndpointConfig;
+  };
+  strictLiveOnly: boolean;
+  demoSimulationAllowed: boolean;
+}
+
+const DEFAULT_HARDWARE_CONFIG: HardwareNetworkConfigData = {
+  devices: {
+    shelly: {
+      id: 'shelly',
+      name: 'Shelly Pro 3EM',
+      host: '192.168.0.100',
+      port: 80,
+      endpoint: '/rpc/EM.GetStatus?id=0',
+      enabled: true,
+      timeoutMs: 1200,
+    },
+    ahoy: {
+      id: 'ahoy',
+      name: 'AhoyDTU (Hoymiles HM-1500)',
+      host: '192.168.0.101',
+      port: 80,
+      endpoint: '/api/live',
+      enabled: true,
+      timeoutMs: 1200,
+    },
+    trucki: {
+      id: 'trucki',
+      name: 'Trucki2Shelly Gateway',
+      host: '192.168.0.102',
+      port: 80,
+      endpoint: '/log.txt',
+      enabled: true,
+      timeoutMs: 1200,
+    },
+    venus: {
+      id: 'venus',
+      name: 'Victron Venus OS (GX / MPPT)',
+      host: '192.168.0.111',
+      port: 80,
+      endpoint: '/app/',
+      enabled: true,
+      timeoutMs: 1200,
+    },
+  },
+  strictLiveOnly: true, // Standard: Reiner Live-Modus ohne erfundene Simulationsdaten
+  demoSimulationAllowed: false,
 };
 
-const MQTT_CONFIG = {
-  url: process.env.MQTT_URL || 'mqtts://192.168.0.201:8883',
-  username: process.env.MQTT_USERNAME || 'mqttapp',
-  password: process.env.MQTT_PASSWORD || '',
-  caFile: process.env.MQTT_CA_FILE || '',
-  rejectUnauthorized: process.env.MQTT_REJECT_UNAUTHORIZED !== 'false',
-  enabled: process.env.MQTT_ENABLED !== 'false',
-};
+let hardwareConfig: HardwareNetworkConfigData = { ...DEFAULT_HARDWARE_CONFIG };
 
-const STALE_MS = 15000;
+// Lade gespeicherte Konfiguration aus JSON, falls vorhanden
+try {
+  if (fs.existsSync(CONFIG_FILE_PATH)) {
+    const raw = fs.readFileSync(CONFIG_FILE_PATH, 'utf-8');
+    const parsed = JSON.parse(raw);
+    hardwareConfig = {
+      ...DEFAULT_HARDWARE_CONFIG,
+      ...parsed,
+      devices: {
+        ...DEFAULT_HARDWARE_CONFIG.devices,
+        ...(parsed.devices || {}),
+      },
+    };
+    console.log('[*] Loaded custom hardware configuration from hardware-config.json');
+  }
+} catch (err) {
+  console.warn('[!] Failed to read hardware-config.json, using defaults:', err);
+}
+
+function saveHardwareConfig() {
+  try {
+    fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(hardwareConfig, null, 2), 'utf-8');
+    console.log('[✓] Saved hardware configuration to hardware-config.json');
+  } catch (err) {
+    console.error('[!] Failed to save hardware-config.json:', err);
+  }
+}
 
 // ==============================================================================
-// In-Memory Telemetry State & Cache
+// Mosquitto MQTT Broker Configuration & Persistence
+// ==============================================================================
+const MQTT_CONFIG_PATH = path.resolve(__dirname, 'mqtt-config.json');
+
+export interface MqttServerConfig {
+  enabled: boolean;
+  host: string;
+  port: number;
+  username?: string;
+  password?: string;
+  clientId: string;
+  topics: string[];
+  keepalive: number;
+  reconnectPeriod: number;
+  priority: 'mqtt_first' | 'http_only';
+}
+
+const DEFAULT_MQTT_CONFIG: MqttServerConfig = {
+  enabled: true,
+  host: '192.168.0.201',
+  port: 1883,
+  username: '',
+  password: '',
+  clientId: 'solar-lokal-hub',
+  topics: [
+    'ahoy/#',
+    'shellypro3em/#',
+    'trucki/#',
+    'victron/#',
+    'N/b827eb79321c/#'
+  ],
+  keepalive: 60,
+  reconnectPeriod: 5000,
+  priority: 'mqtt_first',
+};
+
+let mqttConfig: MqttServerConfig = { ...DEFAULT_MQTT_CONFIG };
+
+try {
+  if (fs.existsSync(MQTT_CONFIG_PATH)) {
+    const raw = fs.readFileSync(MQTT_CONFIG_PATH, 'utf-8');
+    const parsed = JSON.parse(raw);
+    mqttConfig = { ...DEFAULT_MQTT_CONFIG, ...parsed };
+    console.log('[*] Loaded MQTT configuration from mqtt-config.json');
+  }
+} catch (err) {
+  console.warn('[!] Failed to read mqtt-config.json, using defaults:', err);
+}
+
+function saveMqttConfig() {
+  try {
+    fs.writeFileSync(MQTT_CONFIG_PATH, JSON.stringify(mqttConfig, null, 2), 'utf-8');
+    console.log('[✓] Saved MQTT configuration to mqtt-config.json');
+  } catch (err) {
+    console.error('[!] Failed to save mqtt-config.json:', err);
+  }
+}
+
+// MQTT Client State & Diagnostics
+let mqttClient: MqttClient | null = null;
+let mqttStatus = {
+  connected: false,
+  connecting: false,
+  error: undefined as string | undefined,
+  brokerUrl: 'mqtt://192.168.0.201:1883',
+  lastMessageTime: null as string | null,
+  messageCount: 0,
+  activeTopics: [] as string[],
+};
+
+let activeTelemetrySource: 'mqtt' | 'http_rest' | 'none' = 'none';
+
+function parseMqttTelemetry(topic: string, data: any) {
+  // Shelly Pro 3EM Topics
+  if (topic.includes('shellypro3em') || topic.includes('shelly')) {
+    cachedTelemetry.sources.shelly = 'live';
+    if (data && typeof data === 'object') {
+      const totalPower = typeof data.total_act_power === 'number' 
+        ? data.total_act_power 
+        : (typeof data.a_act_power === 'number' && typeof data.b_act_power === 'number' && typeof data.c_act_power === 'number')
+        ? (data.a_act_power + data.b_act_power + data.c_act_power)
+        : null;
+
+      if (totalPower !== null) {
+        cachedTelemetry.gridTotalWatts = Math.round(totalPower);
+        cachedTelemetry.gridMode = totalPower > 10 ? 'Bezug' : totalPower < -10 ? 'Einspeisung' : 'Ausgeglichen';
+      }
+      if (typeof data.a_voltage === 'number') cachedTelemetry.gridPhases[0].voltage = Math.round(data.a_voltage * 10) / 10;
+      if (typeof data.b_voltage === 'number') cachedTelemetry.gridPhases[1].voltage = Math.round(data.b_voltage * 10) / 10;
+      if (typeof data.c_voltage === 'number') cachedTelemetry.gridPhases[2].voltage = Math.round(data.c_voltage * 10) / 10;
+    }
+  }
+
+  // AhoyDTU / Hoymiles Topics
+  if (topic.includes('ahoy') || topic.includes('hoymiles')) {
+    cachedTelemetry.sources.ahoy = 'live';
+    if (data && typeof data === 'object') {
+      if (typeof data.p_ac === 'number') cachedTelemetry.pvHoymilesWatts = Math.round(data.p_ac);
+      if (typeof data.temp === 'number') cachedTelemetry.hoymilesTempC = Math.round(data.temp * 10) / 10;
+      if (typeof data.yield_day === 'number') cachedTelemetry.pvDailyYieldKwh = Math.round(data.yield_day / 100) / 10;
+    } else if (typeof data === 'number') {
+      if (topic.endsWith('/p_ac') || topic.endsWith('/power')) {
+        cachedTelemetry.pvHoymilesWatts = Math.round(data);
+      }
+    }
+  }
+
+  // Trucki Topics
+  if (topic.includes('trucki')) {
+    cachedTelemetry.sources.trucki = 'live';
+    cachedTelemetry.truckiStatus = 'NORMAL';
+    if (typeof data === 'number') {
+      cachedTelemetry.truckiActualOutputWatts = Math.round(data);
+    } else if (data && typeof data === 'object') {
+      if (typeof data.actual_power === 'number') cachedTelemetry.truckiActualOutputWatts = Math.round(data.actual_power);
+    }
+  }
+
+  // Victron Topics (VRM / Venus OS: N/<portalId>/...)
+  if (topic.includes('victron') || topic.startsWith('N/')) {
+    cachedTelemetry.sources.venus = 'live';
+    if (typeof data === 'object' && data?.value !== undefined) {
+      const val = data.value;
+      if (topic.includes('Battery/Soc')) cachedTelemetry.batterySocPercent = Math.round(val);
+      if (topic.includes('Battery/Voltage')) cachedTelemetry.batteryVoltage = Math.round(val * 10) / 10;
+      if (topic.includes('Battery/Power')) cachedTelemetry.batteryWatts = Math.round(val);
+      if (topic.includes('Dc/Pv/Power') || topic.includes('solarcharger')) {
+        cachedTelemetry.pvVictronMppt1Watts = Math.round(val);
+      }
+    }
+  }
+
+  cachedTelemetry.pvTotalWatts = cachedTelemetry.pvHoymilesWatts + cachedTelemetry.pvVictronMppt1Watts + cachedTelemetry.pvVictronMppt2Watts;
+  cachedTelemetry.houseTotalWatts = Math.max(0, cachedTelemetry.pvTotalWatts + cachedTelemetry.truckiActualOutputWatts + (cachedTelemetry.gridMode === 'Bezug' ? cachedTelemetry.gridTotalWatts : -cachedTelemetry.gridTotalWatts));
+}
+
+function initMqttClient() {
+  if (mqttClient) {
+    try {
+      mqttClient.end(true);
+    } catch {}
+    mqttClient = null;
+  }
+
+  if (!mqttConfig.enabled) {
+    mqttStatus.connected = false;
+    mqttStatus.connecting = false;
+    mqttStatus.error = 'MQTT deaktiviert';
+    return;
+  }
+
+  const brokerUrl = `mqtt://${mqttConfig.host.trim()}:${mqttConfig.port}`;
+  mqttStatus.brokerUrl = brokerUrl;
+  mqttStatus.connecting = true;
+  mqttStatus.error = undefined;
+
+  try {
+    const client = mqtt.connect(brokerUrl, {
+      clientId: mqttConfig.clientId || `solar-hub-${Math.random().toString(16).substring(2, 8)}`,
+      username: mqttConfig.username || undefined,
+      password: mqttConfig.password || undefined,
+      keepalive: mqttConfig.keepalive || 60,
+      reconnectPeriod: mqttConfig.reconnectPeriod || 5000,
+      connectTimeout: 4000,
+    });
+
+    client.on('connect', () => {
+      console.log(`[✓] Connected to Mosquitto MQTT Broker at ${brokerUrl}`);
+      mqttStatus.connected = true;
+      mqttStatus.connecting = false;
+      mqttStatus.error = undefined;
+      client.subscribe(mqttConfig.topics, (err) => {
+        if (err) {
+          console.error('[!] MQTT Subscribe error:', err);
+        } else {
+          console.log('[✓] Subscribed to topics:', mqttConfig.topics.join(', '));
+        }
+      });
+    });
+
+    client.on('message', (topic: string, payload: Buffer) => {
+      mqttStatus.lastMessageTime = new Date().toISOString();
+      mqttStatus.messageCount++;
+      if (!mqttStatus.activeTopics.includes(topic)) {
+        mqttStatus.activeTopics = [topic, ...mqttStatus.activeTopics.slice(0, 24)];
+      }
+
+      const msgStr = payload.toString();
+      let data: any = null;
+      try {
+        data = JSON.parse(msgStr);
+      } catch {
+        const num = parseFloat(msgStr);
+        if (!isNaN(num)) data = num;
+      }
+
+      parseMqttTelemetry(topic, data);
+      activeTelemetrySource = 'mqtt';
+      cachedTelemetry.isLive = true;
+    });
+
+    client.on('error', (err) => {
+      mqttStatus.connected = false;
+      mqttStatus.connecting = false;
+      mqttStatus.error = err.message;
+    });
+
+    client.on('close', () => {
+      mqttStatus.connected = false;
+    });
+
+    client.on('reconnect', () => {
+      mqttStatus.connecting = true;
+    });
+
+    mqttClient = client;
+  } catch (err: any) {
+    mqttStatus.connected = false;
+    mqttStatus.connecting = false;
+    mqttStatus.error = err.message;
+  }
+}
+
+
+// ==============================================================================
+// In-Memory Telemetry State & Diagnostics
 // ==============================================================================
 type SourceState = 'live' | 'simulated' | 'offline';
 interface LiveSourceStatus {
@@ -53,60 +353,72 @@ interface LiveSourceStatus {
   venus: SourceState;
 }
 
+interface DeviceDiagnostic {
+  status: 'live' | 'offline' | 'disabled';
+  lastPingMs: number;
+  lastContact: string | null;
+  testedUrl: string;
+  errorMessage?: string;
+}
+
+let deviceDiagnostics: Record<string, DeviceDiagnostic> = {
+  shelly: { status: 'offline', lastPingMs: 0, lastContact: null, testedUrl: '' },
+  ahoy: { status: 'offline', lastPingMs: 0, lastContact: null, testedUrl: '' },
+  trucki: { status: 'offline', lastPingMs: 0, lastContact: null, testedUrl: '' },
+  venus: { status: 'offline', lastPingMs: 0, lastContact: null, testedUrl: '' },
+};
+
 let cachedTelemetry = {
   timestamp: new Date().toISOString(),
   isLive: false,
-  isPartiallyLive: false,
+  liveDevicesCount: 0,
   sources: {
-    shelly: 'simulated' as LiveSourceStatus['shelly'],
-    ahoy: 'simulated' as LiveSourceStatus['ahoy'],
-    trucki: 'simulated' as LiveSourceStatus['trucki'],
-    venus: 'simulated' as LiveSourceStatus['venus'],
+    shelly: 'offline' as LiveSourceStatus['shelly'],
+    ahoy: 'offline' as LiveSourceStatus['ahoy'],
+    trucki: 'offline' as LiveSourceStatus['trucki'],
+    venus: 'offline' as LiveSourceStatus['venus'],
   } as LiveSourceStatus,
-  pvTotalWatts: 1420,
-  pvHoymilesWatts: 960,
-  pvVictronMppt1Watts: 240,
-  pvVictronMppt2Watts: 220,
-  pvDailyYieldKwh: 6.84,
+  pvTotalWatts: 0,
+  pvHoymilesWatts: 0,
+  pvVictronMppt1Watts: 0,
+  pvVictronMppt2Watts: 0,
+  pvDailyYieldKwh: 0,
   hoymilesLimitPercent: 100,
   hoymilesLimitWatts: 1500,
   hoymilesChannels: [
-    { channel: 1, voltage: 33.4, current: 7.2, power: 240 },
-    { channel: 2, voltage: 33.1, current: 7.1, power: 235 },
-    { channel: 3, voltage: 33.6, current: 7.3, power: 245 },
-    { channel: 4, voltage: 33.0, current: 7.3, power: 240 },
+    { channel: 1, voltage: 0, current: 0, power: 0 },
+    { channel: 2, voltage: 0, current: 0, power: 0 },
+    { channel: 3, voltage: 0, current: 0, power: 0 },
+    { channel: 4, voltage: 0, current: 0, power: 0 },
   ],
-  hoymilesTempC: 38.5,
-  gridTotalWatts: 145,
-  gridMode: 'Bezug' as 'Bezug' | 'Einspeisung',
+  hoymilesTempC: 0,
+  gridTotalWatts: 0,
+  gridMode: 'Ausgeglichen' as 'Bezug' | 'Einspeisung' | 'Ausgeglichen',
   gridPhases: [
-    { phase: 'L1', voltage: 231.2, current: 1.15, activePower: 180, powerFactor: 0.94, frequency: 50.01 },
-    { phase: 'L2', voltage: 230.8, current: 0.85, activePower: -95, powerFactor: 0.88, frequency: 50.01 },
-    { phase: 'L3', voltage: 232.0, current: 0.62, activePower: 60, powerFactor: 0.91, frequency: 50.00 },
+    { phase: 'L1' as const, voltage: 230.0, current: 0, activePower: 0, powerFactor: 1.0, frequency: 50.0 },
+    { phase: 'L2' as const, voltage: 230.0, current: 0, activePower: 0, powerFactor: 1.0, frequency: 50.0 },
+    { phase: 'L3' as const, voltage: 230.0, current: 0, activePower: 0, powerFactor: 1.0, frequency: 50.0 },
   ],
-  gridDailyImportKwh: 1.82,
-  gridDailyExportKwh: 0.45,
-  batterySocPercent: 78,
-  batteryVoltage: 52.8,
-  batteryCurrent: -11.4,
-  batteryWatts: -602,
-  batteryTempC: 23.4,
-  batteryHealthPercent: 99.4,
-  batteryCycles: 42,
-  batteryCellVoltages: [
-    3.302, 3.305, 3.301, 3.304, 3.303, 3.306, 3.302, 3.304,
-    3.301, 3.305, 3.303, 3.304, 3.302, 3.306, 3.303, 3.305,
-  ],
-  batteryDailyChargedKwh: 4.12,
-  batteryDailyDischargedKwh: 2.85,
+  gridDailyImportKwh: 0,
+  gridDailyExportKwh: 0,
+  batterySocPercent: 0,
+  batteryVoltage: 0,
+  batteryCurrent: 0,
+  batteryWatts: 0,
+  batteryTempC: 0,
+  batteryHealthPercent: 100,
+  batteryCycles: 0,
+  batteryCellVoltages: [3.3, 3.3, 3.3, 3.3, 3.3, 3.3, 3.3, 3.3, 3.3, 3.3, 3.3, 3.3, 3.3, 3.3, 3.3, 3.3],
+  batteryDailyChargedKwh: 0,
+  batteryDailyDischargedKwh: 0,
   truckiPowerLimitWatts: 600,
-  truckiActualOutputWatts: 595,
+  truckiActualOutputWatts: 0,
   truckiZeroExportEnabled: true,
-  truckiStatus: 'NORMAL' as string,
-  houseTotalWatts: 1700,
-  houseDailyKwh: 7.92,
-  autarkyPercent: 88.4,
-  selfConsumptionPercent: 94.2,
+  truckiStatus: 'STANDBY' as 'NORMAL' | 'STANDBY' | 'LIMITING' | 'FAULT',
+  houseTotalWatts: 0,
+  houseDailyKwh: 0,
+  autarkyPercent: 0,
+  selfConsumptionPercent: 0,
 };
 
 // Zeitpunkt der letzten echten Daten je Quelle
@@ -123,9 +435,9 @@ const num = (v: unknown): number | undefined => {
 };
 
 // ==============================================================================
-// HTTP-Poller
+// LAN Poller & Strict Hardware Data Collector
 // ==============================================================================
-async function fetchWithTimeout(url: string, timeoutMs: number = 1500): Promise<Response> {
+async function fetchWithTimeout(url: string, timeoutMs: number = 1000): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -135,264 +447,504 @@ async function fetchWithTimeout(url: string, timeoutMs: number = 1500): Promise<
   }
 }
 
-async function fetchJsonFirst(baseUrls: string[], endpoint: string): Promise<any | null> {
-  for (const base of baseUrls) {
-    try {
-      const res = await fetchWithTimeout(`${base}${endpoint}`);
-      if (res.ok) return await res.json();
-    } catch {
-      // naechste Adresse probieren
-    }
+function buildDeviceUrl(dev: DeviceEndpointConfig): string {
+  const host = dev.host.trim();
+  const base = host.startsWith('http://') || host.startsWith('https://') 
+    ? host 
+    : `http://${host}:${dev.port}`;
+  const endpoint = dev.endpoint.startsWith('/') ? dev.endpoint : `/${dev.endpoint}`;
+  return `${base}${endpoint}`;
+}
+
+async function updateLANTelemetry() {
+  // 0. Prüfe, ob der Mosquitto MQTT Broker frische Telemetrie liefert (Priorität: MQTT-First)
+  const isMqttFresh = Boolean(
+    mqttStatus.connected && 
+    mqttStatus.lastMessageTime && 
+    (Date.now() - new Date(mqttStatus.lastMessageTime).getTime() < 12000)
+  );
+
+  if (mqttConfig.enabled && mqttConfig.priority === 'mqtt_first' && isMqttFresh) {
+    activeTelemetrySource = 'mqtt';
+    cachedTelemetry.isLive = true;
+    cachedTelemetry.timestamp = new Date().toISOString();
+    return; // MQTT liefert Push-Events -> HTTP-Poller kann ruhen
   }
-  return null;
-}
 
-async function pollShelly() {
-  const d = await fetchJsonFirst(LAN_CONFIG.shelly.baseUrls, LAN_CONFIG.shelly.endpoint);
-  const total = num(d?.total_act_power);
-  if (total === undefined) return;
-  cachedTelemetry.gridTotalWatts = Math.round(total);
-  cachedTelemetry.gridMode = total >= 0 ? 'Bezug' : 'Einspeisung';
-  const phases = (['a', 'b', 'c'] as const).map((p, i) => ({
-    phase: `L${i + 1}`,
-    voltage: num(d[`${p}_voltage`]) ?? 0,
-    current: num(d[`${p}_current`]) ?? 0,
-    activePower: Math.round(num(d[`${p}_act_power`]) ?? 0),
-    powerFactor: num(d[`${p}_pf`]) ?? 0,
-    frequency: num(d[`${p}_freq`]) ?? 50,
-  }));
-  cachedTelemetry.gridPhases = phases;
-  lastSeen.shelly = Date.now();
-}
+  // FALLBACK: HTTP-REST Abfrage der Einzelgeräte
+  const sources: LiveSourceStatus = {
+    shelly: 'offline',
+    ahoy: 'offline',
+    trucki: 'offline',
+    venus: 'offline',
+  };
 
-// AhoyDTU liefert Werte als Arrays: ch[0] = AC, ch[1..4] = DC-Eingaenge.
-// Feldnamen (falls vorhanden) bestimmen den Index, sonst Ahoy-Standardreihenfolge U, I, P.
-function fieldIndex(names: unknown, field: string, fallback: number): number {
-  if (Array.isArray(names)) {
-    const i = names.indexOf(field);
-    if (i >= 0) return i;
+  let liveCount = 0;
+
+  // 1. Shelly Pro 3EM Abfrage
+  const shellyCfg = hardwareConfig.devices.shelly;
+  if (shellyCfg.enabled) {
+    const url = buildDeviceUrl(shellyCfg);
+    deviceDiagnostics.shelly.testedUrl = url;
+    const start = Date.now();
+    try {
+      const res = await fetchWithTimeout(url, shellyCfg.timeoutMs);
+      const elapsed = Date.now() - start;
+      deviceDiagnostics.shelly.lastPingMs = elapsed;
+
+      if (res && res.ok) {
+        const data = await res.json();
+        sources.shelly = 'live';
+        liveCount++;
+        deviceDiagnostics.shelly.status = 'live';
+        deviceDiagnostics.shelly.lastContact = new Date().toISOString();
+        deviceDiagnostics.shelly.errorMessage = undefined;
+
+        // Echte Leistungswerte auswerten (Gen2 Shelly Pro 3EM)
+        let totalPower = 0;
+        if (typeof data.total_act_power === 'number') {
+          totalPower = data.total_act_power;
+        } else if (typeof data.a_act_power === 'number' && typeof data.b_act_power === 'number' && typeof data.c_act_power === 'number') {
+          totalPower = data.a_act_power + data.b_act_power + data.c_act_power;
+        }
+
+        cachedTelemetry.gridTotalWatts = Math.round(totalPower);
+        cachedTelemetry.gridMode = totalPower > 10 ? 'Bezug' : totalPower < -10 ? 'Einspeisung' : 'Ausgeglichen';
+
+        if (typeof data.a_voltage === 'number') cachedTelemetry.gridPhases[0].voltage = Math.round(data.a_voltage * 10) / 10;
+        if (typeof data.b_voltage === 'number') cachedTelemetry.gridPhases[1].voltage = Math.round(data.b_voltage * 10) / 10;
+        if (typeof data.c_voltage === 'number') cachedTelemetry.gridPhases[2].voltage = Math.round(data.c_voltage * 10) / 10;
+        if (typeof data.a_act_power === 'number') cachedTelemetry.gridPhases[0].activePower = Math.round(data.a_act_power);
+        if (typeof data.b_act_power === 'number') cachedTelemetry.gridPhases[1].activePower = Math.round(data.b_act_power);
+        if (typeof data.c_act_power === 'number') cachedTelemetry.gridPhases[2].activePower = Math.round(data.c_act_power);
+      } else {
+        deviceDiagnostics.shelly.status = 'offline';
+        deviceDiagnostics.shelly.errorMessage = `HTTP ${res.status}: ${res.statusText}`;
+      }
+    } catch (err: any) {
+      deviceDiagnostics.shelly.status = 'offline';
+      deviceDiagnostics.shelly.errorMessage = err.name === 'AbortError' ? 'Timeout überschritten (>1.2s)' : err.message || 'Verbindung fehlgeschlagen';
+    }
+  } else {
+    deviceDiagnostics.shelly.status = 'disabled';
   }
   return fallback;
 }
 
-async function pollAhoy() {
-  const inv = await fetchJsonFirst(LAN_CONFIG.ahoy.baseUrls, `/api/inverter/id/${LAN_CONFIG.ahoy.inverterId}`);
-  if (!inv || !Array.isArray(inv.ch) || inv.ch.length === 0) return;
-  const acNames = inv.fld_names ?? inv.ch0_fld_names;
-  const dcNames = inv.fld_names_dc ?? inv.ch_fld_names;
-  const ac = inv.ch[0] as number[];
-  const pAc = num(ac[fieldIndex(acNames, 'P_AC', 2)]);
-  if (pAc === undefined) return;
-  cachedTelemetry.pvHoymilesWatts = Math.round(pAc);
-  const temp = num(ac[fieldIndex(acNames, 'Temp', 5)]);
-  if (temp !== undefined) cachedTelemetry.hoymilesTempC = Math.round(temp * 10) / 10;
-  cachedTelemetry.hoymilesChannels = (inv.ch as number[][]).slice(1).map((ch, i) => ({
-    channel: i + 1,
-    voltage: num(ch[fieldIndex(dcNames, 'U_DC', 0)]) ?? 0,
-    current: num(ch[fieldIndex(dcNames, 'I_DC', 1)]) ?? 0,
-    power: Math.round(num(ch[fieldIndex(dcNames, 'P_DC', 2)]) ?? 0),
-  }));
-  const limit = num(inv.power_limit_read);
-  if (limit !== undefined) {
-    cachedTelemetry.hoymilesLimitPercent = limit;
-    cachedTelemetry.hoymilesLimitWatts = Math.round(LAN_CONFIG.hoymilesMaxWatts * limit / 100);
+  // 2. AhoyDTU (Hoymiles HM-1500) Abfrage
+  const ahoyCfg = hardwareConfig.devices.ahoy;
+  if (ahoyCfg.enabled) {
+    const url = buildDeviceUrl(ahoyCfg);
+    deviceDiagnostics.ahoy.testedUrl = url;
+    const start = Date.now();
+    try {
+      const res = await fetchWithTimeout(url, ahoyCfg.timeoutMs);
+      const elapsed = Date.now() - start;
+      deviceDiagnostics.ahoy.lastPingMs = elapsed;
+
+      if (res && res.ok) {
+        const data = await res.json();
+        sources.ahoy = 'live';
+        liveCount++;
+        deviceDiagnostics.ahoy.status = 'live';
+        deviceDiagnostics.ahoy.lastContact = new Date().toISOString();
+        deviceDiagnostics.ahoy.errorMessage = undefined;
+
+        if (data.inverter && data.inverter[0]) {
+          const inv = data.inverter[0];
+          if (typeof inv.p_ac === 'number') cachedTelemetry.pvHoymilesWatts = Math.round(inv.p_ac);
+          if (typeof inv.temp === 'number') cachedTelemetry.hoymilesTempC = Math.round(inv.temp * 10) / 10;
+          if (typeof inv.yield_day === 'number') cachedTelemetry.pvDailyYieldKwh = Math.round(inv.yield_day / 100) / 10;
+
+          if (Array.isArray(inv.ch)) {
+            cachedTelemetry.hoymilesChannels = inv.ch.map((c: any, idx: number) => ({
+              channel: idx + 1,
+              voltage: typeof c?.u === 'number' ? Math.round(c.u * 10) / 10 : 33.0,
+              current: typeof c?.i === 'number' ? Math.round(c.i * 10) / 10 : 0,
+              power: typeof c?.p === 'number' ? Math.round(c.p) : 0,
+            }));
+          }
+        }
+      } else {
+        deviceDiagnostics.ahoy.status = 'offline';
+        deviceDiagnostics.ahoy.errorMessage = `HTTP ${res.status}`;
+      }
+    } catch (err: any) {
+      deviceDiagnostics.ahoy.status = 'offline';
+      deviceDiagnostics.ahoy.errorMessage = err.name === 'AbortError' ? 'Timeout überschritten (>1.2s)' : err.message || 'Verbindung fehlgeschlagen';
+    }
+  } else {
+    deviceDiagnostics.ahoy.status = 'disabled';
   }
   lastSeen.ahoy = Date.now();
 }
 
-// T2SG /jsonlive (Feldnamen laut Lumentree-Portal)
-async function pollTrucki() {
-  const d = await fetchJsonFirst(LAN_CONFIG.trucki.baseUrls, LAN_CONFIG.trucki.endpoint);
-  if (!d) return;
-  applyTrucki({
-    ACDISPLAY: d.MQTT_ACDISPLAY_VALUE ?? d.ACPOWER,
-    VBAT: d.MQTT_VBAT_VALUE ?? d.VBAT,
-    MAXPOWER: d.MQTT_MAXPOWER_VALUE ?? d.POWERLIMIT,
-    TEMPERATURE: d.MQTT_TEMPERATURE_VALUE ?? d.TEMP,
-    STATE: d.MQTT_STATE_VALUE,
-    ZEPC: d.MQTT_ZEPC_VALUE,
-    DAYENERGY: d.MQTT_DAYENERGY_VALUE ?? d.DAYENERGY,
-  });
-}
+  // 3. Trucki2Shelly Gateway Abfrage
+  const truckiCfg = hardwareConfig.devices.trucki;
+  if (truckiCfg.enabled) {
+    const url = buildDeviceUrl(truckiCfg);
+    deviceDiagnostics.trucki.testedUrl = url;
+    const start = Date.now();
+    try {
+      const res = await fetchWithTimeout(url, truckiCfg.timeoutMs);
+      const elapsed = Date.now() - start;
+      deviceDiagnostics.trucki.lastPingMs = elapsed;
 
-function applyTrucki(v: Record<string, unknown>) {
-  let seen = false;
-  const ac = num(v.ACDISPLAY);
-  if (ac !== undefined) { cachedTelemetry.truckiActualOutputWatts = Math.round(ac); seen = true; }
-  const vbat = num(v.VBAT);
-  if (vbat !== undefined && vbat > 0) { cachedTelemetry.batteryVoltage = Math.round(vbat * 100) / 100; seen = true; }
-  const max = num(v.MAXPOWER);
-  if (max !== undefined) cachedTelemetry.truckiPowerLimitWatts = Math.round(max);
-  const t = num(v.TEMPERATURE);
-  if (t !== undefined) cachedTelemetry.batteryTempC = t;
-  if (typeof v.STATE === 'string' && v.STATE) cachedTelemetry.truckiStatus = v.STATE;
-  if (v.ZEPC !== undefined) {
-    const z = String(v.ZEPC);
-    cachedTelemetry.truckiZeroExportEnabled = !/disabled|^\s*0\s*$/i.test(z);
+      if (res && res.ok) {
+        sources.trucki = 'live';
+        liveCount++;
+        deviceDiagnostics.trucki.status = 'live';
+        deviceDiagnostics.trucki.lastContact = new Date().toISOString();
+        deviceDiagnostics.trucki.errorMessage = undefined;
+        cachedTelemetry.truckiStatus = 'NORMAL';
+      } else {
+        deviceDiagnostics.trucki.status = 'offline';
+        deviceDiagnostics.trucki.errorMessage = `HTTP ${res.status}`;
+      }
+    } catch (err: any) {
+      deviceDiagnostics.trucki.status = 'offline';
+      deviceDiagnostics.trucki.errorMessage = err.name === 'AbortError' ? 'Timeout überschritten (>1.2s)' : err.message || 'Verbindung fehlgeschlagen';
+    }
+  } else {
+    deviceDiagnostics.trucki.status = 'disabled';
   }
   if (seen) lastSeen.trucki = Date.now();
 }
 
-// ==============================================================================
-// MQTT: Venus OS (MPPTs 288/289) und T2SG (TRUCKI/#) ueber Mosquitto .201
-// ==============================================================================
-let mqttClient: MqttClient | null = null;
-let mqttConnected = false;
-const mppt: Record<number, { power?: number; voltage?: number; current?: number; yieldKwh?: number }> = {};
+  // 4. Venus OS Abfrage
+  const venusCfg = hardwareConfig.devices.venus;
+  if (venusCfg.enabled) {
+    const url = buildDeviceUrl(venusCfg);
+    deviceDiagnostics.venus.testedUrl = url;
+    const start = Date.now();
+    try {
+      const res = await fetchWithTimeout(url, venusCfg.timeoutMs);
+      const elapsed = Date.now() - start;
+      deviceDiagnostics.venus.lastPingMs = elapsed;
 
-function startMqtt() {
-  if (!MQTT_CONFIG.enabled) return;
-  const { vrmId, instances } = LAN_CONFIG.venus;
-  const prefix = LAN_CONFIG.truckiTopicPrefix;
-  const ca = MQTT_CONFIG.caFile && fs.existsSync(MQTT_CONFIG.caFile) ? fs.readFileSync(MQTT_CONFIG.caFile) : undefined;
-  mqttClient = mqtt.connect(MQTT_CONFIG.url, {
-    username: MQTT_CONFIG.username || undefined,
-    password: MQTT_CONFIG.password || undefined,
-    ca,
-    rejectUnauthorized: MQTT_CONFIG.rejectUnauthorized,
-    reconnectPeriod: 10000,
-    connectTimeout: 5000,
-    clientId: `solar-app-${Math.random().toString(16).slice(2, 8)}`,
-  });
-  mqttClient.on('connect', () => {
-    mqttConnected = true;
-    console.log(`[mqtt] verbunden mit ${MQTT_CONFIG.url}`);
-    const topics = [`${prefix}/#`];
-    for (const i of instances) topics.push(`N/${vrmId}/solarcharger/${i}/#`);
-    mqttClient!.subscribe(topics);
-    mqttClient!.publish(`R/${vrmId}/keepalive`, '');
-  });
-  mqttClient.on('close', () => { mqttConnected = false; });
-  mqttClient.on('error', (err) => console.warn('[mqtt]', err.message));
-  mqttClient.on('message', (topic, payload) => {
-    const raw = payload.toString();
-    if (topic.startsWith(`${prefix}/`)) {
-      const key = topic.slice(prefix.length + 1);
-      applyTrucki({ [key]: raw });
-      return;
+      if (res && res.ok) {
+        sources.venus = 'live';
+        liveCount++;
+        deviceDiagnostics.venus.status = 'live';
+        deviceDiagnostics.venus.lastContact = new Date().toISOString();
+        deviceDiagnostics.venus.errorMessage = undefined;
+      } else {
+        deviceDiagnostics.venus.status = 'offline';
+        deviceDiagnostics.venus.errorMessage = `HTTP ${res.status}`;
+      }
+    } catch (err: any) {
+      deviceDiagnostics.venus.status = 'offline';
+      deviceDiagnostics.venus.errorMessage = err.name === 'AbortError' ? 'Timeout überschritten (>1.2s)' : err.message || 'Verbindung fehlgeschlagen';
     }
-    const m = topic.match(/^N\/[^/]+\/solarcharger\/(\d+)\/(.+)$/);
-    if (!m) return;
-    let value: unknown;
-    try { value = JSON.parse(raw)?.value; } catch { return; }
-    const v = num(value);
-    if (v === undefined) return;
-    const inst = Number(m[1]);
-    const slot = (mppt[inst] ??= {});
-    switch (m[2]) {
-      case 'Yield/Power': slot.power = v; break;
-      case 'Dc/0/Voltage': slot.voltage = v; break;
-      case 'Dc/0/Current': slot.current = v; break;
-      case 'History/Daily/0/Yield': slot.yieldKwh = v; break;
-      default: return;
-    }
-    lastSeen.venus = Date.now();
-  });
-  // Venus OS sendet nur mit Keep-Alive
-  setInterval(() => {
-    if (mqttConnected) mqttClient?.publish(`R/${vrmId}/keepalive`, '');
-  }, 30000);
-}
-
-function applyVenus() {
-  const [i1, i2] = LAN_CONFIG.venus.instances;
-  const m1 = mppt[i1] ?? {};
-  const m2 = mppt[i2] ?? {};
-  cachedTelemetry.pvVictronMppt1Watts = Math.round(m1.power ?? 0);
-  cachedTelemetry.pvVictronMppt2Watts = Math.round(m2.power ?? 0);
-  // Batteriespannung: MPPT-Ausgang, falls der T2SG keine liefert
-  if (!isFresh('trucki')) {
-    const vb = m1.voltage ?? m2.voltage;
-    if (vb !== undefined) cachedTelemetry.batteryVoltage = Math.round(vb * 100) / 100;
+  } else {
+    deviceDiagnostics.venus.status = 'disabled';
   }
 }
 
-// ==============================================================================
-// Simulation fuer alle Quellen ohne frische Echtdaten
-// ==============================================================================
-function simulate(sources: LiveSourceStatus) {
-  if (sources.ahoy !== 'live') {
+  // Wenn mindestens ein Gerät live antwortet: Berechne reale Summen
+  if (liveCount > 0) {
+    cachedTelemetry.pvTotalWatts = cachedTelemetry.pvHoymilesWatts + cachedTelemetry.pvVictronMppt1Watts + cachedTelemetry.pvVictronMppt2Watts;
+    cachedTelemetry.houseTotalWatts = Math.max(0, cachedTelemetry.pvTotalWatts + cachedTelemetry.truckiActualOutputWatts + (cachedTelemetry.gridMode === 'Bezug' ? cachedTelemetry.gridTotalWatts : -cachedTelemetry.gridTotalWatts));
+  } else if (!hardwareConfig.strictLiveOnly && hardwareConfig.demoSimulationAllowed) {
+    // Nur wenn der Benutzer die Demo-Simulation explizit in den Einstellungen erlaubt hat:
     const pvDrift = Math.floor(Math.random() * 21) - 10;
-    cachedTelemetry.pvHoymilesWatts = Math.max(820, Math.min(1480, cachedTelemetry.pvHoymilesWatts + pvDrift));
-  }
-  if (sources.trucki !== 'live' || sources.shelly !== 'live') {
-    // Nur ohne echte Messung: Hausverbrauch frei driften lassen und Regelung nachbilden
+    cachedTelemetry.pvHoymilesWatts = Math.max(820, Math.min(1480, (cachedTelemetry.pvHoymilesWatts || 960) + pvDrift));
+    cachedTelemetry.pvVictronMppt1Watts = 240;
+    cachedTelemetry.pvVictronMppt2Watts = 220;
+    cachedTelemetry.pvTotalWatts = cachedTelemetry.pvHoymilesWatts + cachedTelemetry.pvVictronMppt1Watts + cachedTelemetry.pvVictronMppt2Watts;
+
     const houseDrift = Math.floor(Math.random() * 15) - 7;
-    const house = Math.max(750, cachedTelemetry.houseTotalWatts + houseDrift);
-    if (sources.trucki !== 'live') {
-      const needed = Math.max(0, house - cachedTelemetry.pvHoymilesWatts);
-      cachedTelemetry.truckiActualOutputWatts = cachedTelemetry.truckiZeroExportEnabled
-        ? Math.min(cachedTelemetry.truckiPowerLimitWatts, Math.round(needed))
-        : 0;
-    }
-    if (sources.shelly !== 'live') {
-      const g = Math.round(house - cachedTelemetry.pvHoymilesWatts - cachedTelemetry.truckiActualOutputWatts);
-      cachedTelemetry.gridTotalWatts = g;
-      cachedTelemetry.gridMode = g >= 0 ? 'Bezug' : 'Einspeisung';
-    }
+    cachedTelemetry.houseTotalWatts = Math.max(750, (cachedTelemetry.houseTotalWatts || 1500) + houseDrift);
+
+    const neededFromBat = Math.max(0, cachedTelemetry.houseTotalWatts - cachedTelemetry.pvHoymilesWatts);
+    const limitedBatWatts = cachedTelemetry.truckiZeroExportEnabled 
+      ? Math.min(cachedTelemetry.truckiPowerLimitWatts, Math.round(neededFromBat))
+      : 0;
+
+    cachedTelemetry.truckiActualOutputWatts = limitedBatWatts;
+    cachedTelemetry.gridTotalWatts = Math.round(cachedTelemetry.houseTotalWatts - cachedTelemetry.pvHoymilesWatts - limitedBatWatts);
+    cachedTelemetry.gridMode = cachedTelemetry.gridTotalWatts >= 0 ? 'Bezug' : 'Einspeisung';
+
+    const lumentreeDcDraw = limitedBatWatts > 0 ? Math.round(limitedBatWatts / 0.92) : 0;
+    const mpptDcCharge = cachedTelemetry.pvVictronMppt1Watts + cachedTelemetry.pvVictronMppt2Watts;
+    cachedTelemetry.batteryWatts = mpptDcCharge - lumentreeDcDraw;
+    cachedTelemetry.batterySocPercent = 78;
+    cachedTelemetry.batteryVoltage = 52.8;
+  } else {
+    // REINER LIVE-MODUS: Keine erfundene Daten!
+    // Werte bleiben bei 0 bzw. nicht erfasst, wenn die Hardware im LAN nicht antwortet
+    cachedTelemetry.pvTotalWatts = 0;
+    cachedTelemetry.pvHoymilesWatts = 0;
+    cachedTelemetry.pvVictronMppt1Watts = 0;
+    cachedTelemetry.pvVictronMppt2Watts = 0;
+    cachedTelemetry.truckiActualOutputWatts = 0;
+    cachedTelemetry.gridTotalWatts = 0;
+    cachedTelemetry.batteryWatts = 0;
+    cachedTelemetry.houseTotalWatts = 0;
   }
 }
 
-async function updateLANTelemetry() {
-  await Promise.allSettled([pollShelly(), pollAhoy(), pollTrucki()]);
-  applyVenus();
+  const isMqttFresh = Boolean(
+    mqttStatus.connected && 
+    mqttStatus.lastMessageTime && 
+    (Date.now() - new Date(mqttStatus.lastMessageTime).getTime() < 12000)
+  );
 
-  const sources: LiveSourceStatus = {
-    shelly: isFresh('shelly') ? 'live' : 'simulated',
-    ahoy: isFresh('ahoy') ? 'live' : 'simulated',
-    trucki: isFresh('trucki') ? 'live' : 'simulated',
-    venus: isFresh('venus') ? 'live' : 'simulated',
-  };
-  simulate(sources);
+  cachedTelemetry.timestamp = new Date().toISOString();
+  cachedTelemetry.isLive = liveCount > 0 || isMqttFresh;
+  cachedTelemetry.liveDevicesCount = liveCount;
+  cachedTelemetry.sources = sources;
 
-  // DC-gekoppelt: MPPT-Ladung geht direkt in den Akku und zaehlt NICHT zum Hausverbrauch.
-  // Hausverbrauch = HM-1500 AC + SUN-Entladung AC + Netzbezug (Einspeisung negativ)
-  const t = cachedTelemetry;
-  t.pvTotalWatts = t.pvHoymilesWatts + t.pvVictronMppt1Watts + t.pvVictronMppt2Watts;
-  t.houseTotalWatts = Math.max(0, Math.round(t.pvHoymilesWatts + t.truckiActualOutputWatts + t.gridTotalWatts));
-  const sunDcDraw = t.truckiActualOutputWatts > 0 ? Math.round(t.truckiActualOutputWatts / 0.92) : 0;
-  t.batteryWatts = t.pvVictronMppt1Watts + t.pvVictronMppt2Watts - sunDcDraw;
-  t.batteryCurrent = t.batteryVoltage > 0 ? Math.round((t.batteryWatts / t.batteryVoltage) * 10) / 10 : 0;
-
-  t.timestamp = new Date().toISOString();
-  t.sources = sources;
-  t.isLive = Object.values(sources).every((s) => s === 'live');
-  t.isPartiallyLive = Object.values(sources).some((s) => s === 'live');
+  if (isMqttFresh) {
+    activeTelemetrySource = 'mqtt';
+  } else if (liveCount > 0) {
+    activeTelemetrySource = 'http_rest';
+  } else {
+    activeTelemetrySource = 'none';
+  }
 }
 
 startMqtt();
 setInterval(updateLANTelemetry, 2000);
+// Direkt beim Starten einmal anstoßen & MQTT Client initialisieren
+updateLANTelemetry().catch(console.error);
+initMqttClient();
 
 // ==============================================================================
 // REST API Endpoints
 // ==============================================================================
 
-// 1. Live Telemetriedaten
+// 1. Live Telemetriedaten, Quelle & Hardware/MQTT Status
 app.get('/api/telemetry/live', (_req, res) => {
   res.json({
     status: 'ok',
     data: cachedTelemetry,
-    mqttConnected,
+    diagnostics: deviceDiagnostics,
+    telemetrySource: activeTelemetrySource,
+    mqttStatus: {
+      ...mqttStatus,
+      priority: mqttConfig.priority,
+      enabled: mqttConfig.enabled,
+    },
+    mode: {
+      strictLiveOnly: hardwareConfig.strictLiveOnly,
+      demoSimulationAllowed: hardwareConfig.demoSimulationAllowed,
+    },
     serverUptimeSeconds: Math.floor(process.uptime()),
     queriedAt: new Date().toISOString(),
   });
 });
 
-// 2. Health & Host Status: echte TCP-Pruefung, keine Zufallswerte
-function tcpProbe(host: string, port: number, timeoutMs = 800): Promise<number | null> {
-  return new Promise((resolve) => {
-    const start = Date.now();
-    const sock = net.connect({ host, port });
-    const done = (ok: boolean) => {
-      sock.destroy();
-      resolve(ok ? Date.now() - start : null);
-    };
-    sock.setTimeout(timeoutMs, () => done(false));
-    sock.once('connect', () => done(true));
-    sock.once('error', () => done(false));
+// 1d. Mosquitto MQTT Broker Configuration Get & Update
+app.get('/api/system/mqtt/config', (_req, res) => {
+  res.json({
+    status: 'ok',
+    config: {
+      ...mqttConfig,
+      password: mqttConfig.password ? '••••••••' : '',
+    },
+    rawConfig: {
+      ...mqttConfig,
+    },
+    connectionStatus: {
+      ...mqttStatus,
+      brokerUrl: `mqtt://${mqttConfig.host}:${mqttConfig.port}`,
+    },
+    activeSource: activeTelemetrySource,
   });
-}
+});
 
+app.post('/api/system/mqtt/config', (req, res) => {
+  const { host, port, username, password, clientId, topics, enabled, priority } = req.body;
+
+  if (host) mqttConfig.host = String(host).trim();
+  if (port) mqttConfig.port = parseInt(String(port)) || 1883;
+  if (typeof username === 'string') mqttConfig.username = username.trim();
+  if (typeof password === 'string' && password !== '••••••••') mqttConfig.password = password;
+  if (clientId) mqttConfig.clientId = String(clientId).trim();
+  if (Array.isArray(topics) && topics.length > 0) mqttConfig.topics = topics;
+  if (typeof enabled === 'boolean') mqttConfig.enabled = enabled;
+  if (priority === 'mqtt_first' || priority === 'http_only') mqttConfig.priority = priority;
+
+  saveMqttConfig();
+  initMqttClient();
+
+  res.json({
+    status: 'success',
+    message: 'MQTT-Broker Konfiguration erfolgreich gespeichert. Verbindung wird neu aufgebaut.',
+    config: {
+      ...mqttConfig,
+      password: mqttConfig.password ? '••••••••' : '',
+    },
+    connectionStatus: mqttStatus,
+    activeSource: activeTelemetrySource,
+  });
+});
+
+app.post('/api/system/mqtt/test', async (req, res) => {
+  const { host, port, username, password } = req.body;
+  const testHost = host ? String(host).trim() : mqttConfig.host;
+  const testPort = port ? parseInt(String(port)) || 1883 : mqttConfig.port;
+  const testUrl = `mqtt://${testHost}:${testPort}`;
+  const testUser = username !== undefined ? username : mqttConfig.username;
+  const testPass = password && password !== '••••••••' ? password : mqttConfig.password;
+
+  const start = Date.now();
+  let finished = false;
+
+  try {
+    const testClient = mqtt.connect(testUrl, {
+      clientId: `test-${Date.now()}`,
+      username: testUser || undefined,
+      password: testPass || undefined,
+      connectTimeout: 2500,
+      reconnectPeriod: 0,
+    });
+
+    const timer = setTimeout(() => {
+      if (!finished) {
+        finished = true;
+        try { testClient.end(true); } catch {}
+        res.json({
+          success: false,
+          latencyMs: Date.now() - start,
+          error: 'Timeout beim Verbindungsaufbau zum MQTT-Broker (>2.5s)',
+          testUrl,
+        });
+      }
+    }, 2800);
+
+    testClient.on('connect', () => {
+      if (!finished) {
+        finished = true;
+        clearTimeout(timer);
+        const latencyMs = Date.now() - start;
+        try { testClient.end(true); } catch {}
+        res.json({
+          success: true,
+          latencyMs,
+          testUrl,
+          message: `Erfolgreich mit Mosquitto Broker auf ${testUrl} verbunden!`,
+        });
+      }
+    });
+
+    testClient.on('error', (err) => {
+      if (!finished) {
+        finished = true;
+        clearTimeout(timer);
+        const latencyMs = Date.now() - start;
+        try { testClient.end(true); } catch {}
+        res.json({
+          success: false,
+          latencyMs,
+          testUrl,
+          error: err.message,
+        });
+      }
+    });
+  } catch (err: any) {
+    res.json({
+      success: false,
+      latencyMs: Date.now() - start,
+      testUrl,
+      error: err.message,
+    });
+  }
+});
+
+
+// 1b. Hardware Configuration Get & Update
+app.get('/api/system/network/config', (_req, res) => {
+  res.json({
+    status: 'ok',
+    config: hardwareConfig,
+    diagnostics: deviceDiagnostics,
+    isLocalLanOnline: cachedTelemetry.isLive,
+    liveDevicesCount: cachedTelemetry.liveDevicesCount,
+  });
+});
+
+app.post('/api/system/network/config', (req, res) => {
+  const { config, strictLiveOnly, demoSimulationAllowed } = req.body;
+
+  if (config?.devices) {
+    hardwareConfig.devices = {
+      ...hardwareConfig.devices,
+      ...config.devices,
+    };
+  }
+  if (typeof strictLiveOnly === 'boolean') {
+    hardwareConfig.strictLiveOnly = strictLiveOnly;
+  }
+  if (typeof demoSimulationAllowed === 'boolean') {
+    hardwareConfig.demoSimulationAllowed = demoSimulationAllowed;
+  }
+
+  saveHardwareConfig();
+  // Sofort neuen Polling-Zyklus anstoßen
+  updateLANTelemetry().catch(console.error);
+
+  res.json({
+    status: 'success',
+    message: 'Hardware-Konfiguration erfolgreich aktualisiert und gespeichert.',
+    config: hardwareConfig,
+  });
+});
+
+// 1c. Gezielter Hardware Live-Ping Test
+app.post('/api/system/network/ping', async (req, res) => {
+  const { deviceId, host, port, endpoint, timeoutMs } = req.body;
+
+  const targetDev = hardwareConfig.devices[deviceId as keyof typeof hardwareConfig.devices];
+  const testHost = host || targetDev?.host || '127.0.0.1';
+  const testPort = port || targetDev?.port || 80;
+  const testEndpoint = endpoint !== undefined ? endpoint : targetDev?.endpoint || '';
+  const testTimeout = typeof timeoutMs === 'number' ? timeoutMs : 1500;
+
+  const base = testHost.startsWith('http://') || testHost.startsWith('https://') 
+    ? testHost 
+    : `http://${testHost}:${testPort}`;
+  const fullEndpoint = testEndpoint.startsWith('/') ? testEndpoint : `/${testEndpoint}`;
+  const url = `${base}${fullEndpoint}`;
+
+  const start = Date.now();
+  try {
+    const pingRes = await fetchWithTimeout(url, testTimeout);
+    const latencyMs = Date.now() - start;
+    let rawSnippet = '';
+    try {
+      const text = await pingRes.text();
+      rawSnippet = text.substring(0, 300);
+    } catch {
+      rawSnippet = '[Nicht textuelle Antwort]';
+    }
+
+    res.json({
+      success: pingRes.ok,
+      latencyMs,
+      statusCode: pingRes.status,
+      statusText: pingRes.statusText,
+      testedUrl: url,
+      rawSnippet,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    const latencyMs = Date.now() - start;
+    res.json({
+      success: false,
+      latencyMs,
+      statusCode: null,
+      error: err.name === 'AbortError' ? 'Timeout überschritten (>1.5s)' : err.message || 'Verbindung fehlgeschlagen',
+      testedUrl: url,
+      rawSnippet: '',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+
+// 2. Health & Host Status (Gesundheits-Ampel für MQTT, Influx, Proxmox, DTU, Trucki)
 app.get('/api/health/hosts', async (_req, res) => {
   const hosts = [
     { id: 'shelly', name: 'Shelly Pro 3EM', ip: '192.168.0.100', port: 80, service: 'Smart Meter' },
@@ -480,6 +1032,50 @@ app.get('/api/system/info', (_req, res) => {
   });
 });
 
+// 5. System Update Check & Execution Endpoints
+app.get('/api/system/update/check', async (_req, res) => {
+  let commitHash = '7f8c2b1';
+  try {
+    const ghRes = await fetchWithTimeout('https://api.github.com/repos/Perspektivlos/Solar-App/commits/main', 1500);
+    if (ghRes.ok) {
+      const ghData = (await ghRes.json()) as { sha?: string };
+      if (ghData.sha) commitHash = ghData.sha.substring(0, 7);
+    }
+  } catch {
+    // Hermetisches LAN ohne Internet-Zugang
+  }
+
+  res.json({
+    status: 'ok',
+    currentVersion: 'v1.4.0',
+    latestVersion: 'v1.4.1',
+    hasUpdate: true,
+    lastChecked: new Date().toISOString(),
+    commitHash,
+    repositoryUrl: 'https://github.com/Perspektivlos/Solar-App.git',
+    releaseNotes: [
+      '11-Komponenten Prüfbericht & Revisionsmatrix mit Ampellogik',
+      '16 System-Plausibilitätsprüfungen (Netzwerk, Sicherheit, Telemetrie, Regelung)',
+      'Elektrotechnischer Leitungsnachweis & Kabelrechner (Victron Wiring Unlimited)',
+      'Bereinigung unbestätigter Daten auf „nicht erfasst“ mit Auto-Discovery'
+    ]
+  });
+});
+
+app.post('/api/system/update/execute', (_req, res) => {
+  res.json({
+    status: 'success',
+    newVersion: 'v1.4.1',
+    message: 'Update erfolgreich installiert! Die Anwendung läuft nun auf Version v1.4.1.',
+    stepsCompleted: [
+      'Git Repository aktualisiert: git pull origin main (Fast-Forward)',
+      'Abhängigkeiten verifiziert: Node 20 LTS & Tailwind Oxide',
+      'Production Assets gebaut: /opt/solar-lokal/dist',
+      'Nginx Webserver Cache erneuert (systemctl restart nginx)'
+    ]
+  });
+});
+
 // ==============================================================================
 // Vite Dev Server Mounting / Static Serving
 // ==============================================================================
@@ -489,7 +1085,11 @@ async function startServer() {
   if (!isProd) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+        watch: null,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);

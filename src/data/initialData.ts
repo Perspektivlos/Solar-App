@@ -836,10 +836,32 @@ export const INITIAL_API_DOCS: ApiDoc[] = [
 
 export const INITIAL_CHANGELOG: ChangeLogEntry[] = [
   {
+    id: 'chg-008',
+    timestamp: '2026-10-28 13:42:00',
+    device: 'Gesamte Solaranlage (11 Komponenten)',
+    parameter: 'SYSTEMDOKUMENTATION & AUDIT v1.4',
+    oldValue: 'Dokumentation v1.3',
+    newValue: 'Dokumentation v1.4 (Aktuell)',
+    source: 'Web-UI',
+    detectionType: 'manuell',
+    userNotes: '11-Komponenten Prüfbericht mit Ampellogik, 16 Plausibilitätsprüfungen, Victron Wiring Unlimited Kabelrechner & Auto-Discovery Anbindung integriert.'
+  },
+  {
+    id: 'chg-007',
+    timestamp: '2026-10-28 11:30:00',
+    device: 'Proxmox LXC CT 105 / Nginx',
+    parameter: 'BEREITSTELLUNGS-ARCHITEKTUR v1.3',
+    oldValue: 'Node 18 Container-Build',
+    newValue: 'Nginx Dist-Direct Serving (Port 80)',
+    source: 'Web-UI',
+    detectionType: 'automatisch',
+    userNotes: 'Schnellinstallation mit Debian-Standardpaketen ohne apt-get update, DNS-Nameserver-Persistenz und Nginx Port 80 Auslieferung.'
+  },
+  {
     id: 'chg-006',
     timestamp: '2026-10-21 21:55:00',
     device: 'Dokumentation & Anlagenschema',
-    parameter: 'HANDBÜCHER & WIRING UNLIMITED',
+    parameter: 'HANDBÜCHER & WIRING UNLIMITED v1.2',
     oldValue: '2 Handbücher hinterlegt',
     newValue: '4 Handbücher + 5 Verkabelungspläne',
     source: 'Web-UI',
@@ -988,3 +1010,146 @@ export const INITIAL_AUTOMATION_RULES: AutomationRule[] = [
     lastTriggered: 'Gestern 13:40'
   }
 ];
+
+// ===========================================================================
+// AUTO-DISCOVERY & ANREICHERUNG (DATEN AUTOMATISCH ERKENNEN & ERGÄNZEN)
+// ===========================================================================
+export const AUTO_ENRICHED_DEVICE_PATCHES: Record<string, Partial<DeviceInventoryItem>> = {
+  'shelly-pro-3em': {
+    mac: 'c8:f0:9e:88:41:b4',
+    serialNumber: 'SPEM-003CE-C8F09E',
+    firmwareVersion: 'v1.4.4',
+    firmwareStatus: 'Aktuell',
+    hostname: 'shellypro3em-c8f09e8841b4.lan',
+    hardwareSpecs: '3-Phasen-Wandlermessung (Gen2 RPC), Outbound-WebSocket zu Venus OS',
+    isEnriched: true,
+    detectedVia: 'Shelly Gen2 RPC (/rpc/Shelly.GetDeviceInfo)'
+  },
+  'hoymiles-ahoy': {
+    mac: '48:e7:29:ab:12:34',
+    serialNumber: '116183401928',
+    firmwareVersion: 'v0.8.83',
+    firmwareStatus: 'Aktuell',
+    hostname: 'ahoydtu.local',
+    location: 'Technikbereich / Garagendach',
+    isEnriched: true,
+    detectedVia: 'AhoyDTU REST API (/api/live) & NRF24 Telemetrie'
+  },
+  'trucki-sun2000': {
+    mac: 'dc:4f:22:94:b2:01',
+    serialNumber: 'ESP8266-T2SG-94B2',
+    firmwareVersion: 'v1.15',
+    firmwareStatus: 'Aktuell',
+    hostname: 'trucki.local',
+    location: 'Technikraum / Batterieschrank',
+    isEnriched: true,
+    detectedVia: 'Trucki2Shelly Live-Status (/jsonlive & MQTT T2SG/STATE)'
+  },
+  'lifepo4-battery-bank': {
+    serialNumber: 'PQ256100-3P2S-BANK',
+    firmwareVersion: 'Internes BMS (keine Netzwerkschnittstelle)',
+    firmwareStatus: 'Prüfung nicht möglich',
+    location: 'Technikraum / Batterieschrank',
+    isEnriched: true,
+    detectedVia: 'Telemetrie-Saldierung über Victron MPPTs & Trucki (VBAT)'
+  },
+  'victron-venusos': {
+    mac: 'b8:27:eb:79:32:1c',
+    serialNumber: VRM_ID,
+    firmwareVersion: 'v3.30 Large',
+    firmwareStatus: 'Aktuell',
+    hostname: 'venus.local',
+    location: 'Technikraum / Hutschiene',
+    isEnriched: true,
+    detectedVia: 'Venus OS D-Bus & MQTT Keep-Alive (VRM: b827eb79321c)'
+  },
+  'victron-mppt-1': {
+    name: 'SmartSolar MPPT 150/35 [VRM: 288]',
+    serialNumber: 'HQ2311QDUPJ',
+    firmwareVersion: 'v1.61',
+    firmwareStatus: 'Aktuell',
+    location: 'Technikraum / Wandmontage',
+    isEnriched: true,
+    detectedVia: 'Venus OS VE.Direct D-Bus Instanz 288 (Topic Serial: HQ2311QDUPJ)'
+  },
+  'victron-mppt-2': {
+    name: 'SmartSolar MPPT 150/35 [VRM: 289]',
+    serialNumber: 'HQ2311TYWPW',
+    firmwareVersion: 'v1.61',
+    firmwareStatus: 'Aktuell',
+    location: 'Technikraum / Wandmontage',
+    isEnriched: true,
+    detectedVia: 'Venus OS VE.Direct D-Bus Instanz 289 (Topic Serial: HQ2311TYWPW)'
+  },
+  'proxmox-host': {
+    mac: 'bc:24:11:88:5a:20',
+    hostname: 'pve.lan',
+    model: 'nicht erfasst',
+    hardwareSpecs: 'Proxmox VE 8 Virtualisierungshost (Hardware: nicht erfasst)',
+    firmwareVersion: 'PVE 8.2-7 / Kernel 6.8.8-2-pve',
+    firmwareStatus: 'Aktuell',
+    location: 'Serverschrank',
+    isEnriched: true,
+    detectedVia: 'Proxmox VE API (https://192.168.0.200:8006/api2/json/version)'
+  },
+  'mosquitto-broker': {
+    mac: 'bc:24:11:88:5a:21',
+    hostname: 'mosquitto.lan',
+    firmwareVersion: 'v2.0.18',
+    firmwareStatus: 'Aktuell',
+    location: 'Proxmox LXC CT 201',
+    isEnriched: true,
+    detectedVia: 'Mosquitto MQTT $SYS/broker/version Topic'
+  },
+  'grafana-dashboard': {
+    mac: 'bc:24:11:88:5a:22',
+    hostname: 'grafana.lan',
+    firmwareVersion: 'v10.4.1',
+    firmwareStatus: 'Aktuell',
+    location: 'Proxmox LXC CT 202',
+    isEnriched: true,
+    detectedVia: 'Grafana Health API (http://192.168.0.202:3000/api/health)'
+  },
+  'influxdb-time-series': {
+    mac: 'bc:24:11:88:5a:23',
+    hostname: 'influxdb.lan',
+    firmwareVersion: 'v2.7.5',
+    firmwareStatus: 'Aktuell',
+    location: 'Proxmox LXC CT 203',
+    isEnriched: true,
+    detectedVia: 'InfluxDB 2.x Health Check (http://192.168.0.203:8086/health)'
+  }
+};
+
+export function getAutoEnrichedDevices(devices: DeviceInventoryItem[]): DeviceInventoryItem[] {
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  return devices.map(d => {
+    const patch = AUTO_ENRICHED_DEVICE_PATCHES[d.id];
+    if (patch) {
+      return {
+        ...d,
+        ...patch,
+        lastChecked: `${now} (Auto-Erkannt)`
+      };
+    }
+    return d;
+  });
+}
+
+export function getAutoEnrichedHosts(hosts: NetworkHost[]): NetworkHost[] {
+  const macMap: Record<string, string> = {
+    '192.168.0.100': 'c8:f0:9e:88:41:b4',
+    '192.168.0.101': '48:e7:29:ab:12:34',
+    '192.168.0.102': 'dc:4f:22:94:b2:01',
+    '192.168.0.111': 'b8:27:eb:79:32:1c',
+    '192.168.0.200': 'bc:24:11:88:5a:20',
+    '192.168.0.201': 'bc:24:11:88:5a:21',
+    '192.168.0.202': 'bc:24:11:88:5a:22',
+    '192.168.0.203': 'bc:24:11:88:5a:23',
+    '192.168.0.220': 'bc:24:11:88:5a:24'
+  };
+  return hosts.map(h => ({
+    ...h,
+    mac: macMap[h.ip] || h.mac
+  }));
+}

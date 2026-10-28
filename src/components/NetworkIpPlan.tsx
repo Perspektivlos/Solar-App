@@ -22,6 +22,7 @@ interface NetworkIpPlanProps {
   onAcceptDiscoveredDevice: (device: DiscoveredDevice) => void;
   onIgnoreDiscoveredDevice: () => void;
   onSimulateScan: () => void;
+  onOpenHardwareConfig?: () => void;
 }
 
 export const NetworkIpPlan: React.FC<NetworkIpPlanProps> = ({
@@ -29,7 +30,8 @@ export const NetworkIpPlan: React.FC<NetworkIpPlanProps> = ({
   discoveredDevice,
   onAcceptDiscoveredDevice,
   onIgnoreDiscoveredDevice,
-  onSimulateScan
+  onSimulateScan,
+  onOpenHardwareConfig
 }) => {
   const [search, setSearch] = useState<string>('');
   const [isScanning, setIsScanning] = useState<boolean>(false);
@@ -142,6 +144,17 @@ export const NetworkIpPlan: React.FC<NetworkIpPlanProps> = ({
               />
             </div>
 
+            {onOpenHardwareConfig && (
+              <button
+                onClick={onOpenHardwareConfig}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/30 hover:bg-sky-500/20 font-mono transition-all"
+                title="IP-Adressen, Ports und Live-Endpunkte für Shelly, AhoyDTU, Trucki und Venus OS konfigurieren"
+              >
+                <Radio className="w-3.5 h-3.5 text-sky-400" />
+                <span>Live-Schnittstellen</span>
+              </button>
+            )}
+
             <button
               onClick={handleScanClick}
               disabled={isScanning}
@@ -213,7 +226,13 @@ export const NetworkIpPlan: React.FC<NetworkIpPlanProps> = ({
                         </a>
                       )}
                     </div>
-                    <div className="text-[10px] text-slate-500">{host.mac}</div>
+                    <div className="text-[10px] font-mono-code mt-0.5">
+                      {host.mac === 'nicht erfasst' ? (
+                        <span className="text-slate-500 italic">MAC: nicht erfasst</span>
+                      ) : (
+                        <span className="text-emerald-400/90 font-mono-code">MAC: {host.mac}</span>
+                      )}
+                    </div>
                   </td>
                   <td className="p-3 text-slate-400">{host.deviceCategory}</td>
                   <td className="p-3">

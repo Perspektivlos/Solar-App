@@ -443,17 +443,17 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
     },
     {
       id: 'vic-shunt-pos',
-      device: 'Victron Verkabelung (Wiring Unlimited)',
+      device: 'Victron & Batterie Monitoring',
       category: 'victron',
-      parameter: 'SmartShunt Einbauort & Peukert-Exponent',
-      configuredValue: 'Minuspfad vor Masse / Peukert 1.05',
+      parameter: 'Batterie-Messung & Shunt-Status',
+      configuredValue: 'nicht erfasst (Spannung via MPPTs & T2SG)',
       unit: 'Topologie',
-      nominalRange: 'Ausschließlich im Minus-Pfad / Peukert 1.05',
-      sourceDoc: 'Victron Wiring Unlimited (rev 03)',
-      sourcePage: 'Kap. 4 (Shunt-Platzierung & Peukert)',
-      status: 'passed',
-      explanation: 'Keine Verbraucher oder Ladegeräte dürfen direkt an Batterie-Minus angeschlossen werden. Peukert 1.05 ist für LiFePO4 exakt vorgeschrieben.',
-      tolerance: 'Normgerecht'
+      nominalRange: 'Spannungsgeführt über MPPT 288/289 & T2SG VBAT',
+      sourceDoc: 'Anlagendokumentation Solar-Lokal',
+      sourcePage: 'Realer Ist-Zustand',
+      status: 'info',
+      explanation: 'In der realen Anlage ist kein externer SmartShunt verbaut. Die Batteriespannung wird direkt von den beiden SmartSolar MPPTs und dem T2SG erfasst.',
+      tolerance: 'Ist-Zustand'
     }
   ];
 

@@ -103,6 +103,8 @@ export interface DeviceInventoryItem {
   }[];
   isIstZustand: boolean;
   notes?: string;
+  isEnriched?: boolean;
+  detectedVia?: string;
 }
 
 export interface NetworkHost {
@@ -114,6 +116,38 @@ export interface NetworkHost {
   status: 'Online' | 'Offline' | 'Prüfung';
   latencyMs: number;
   mac: string;
+}
+
+export interface HardwareDeviceConfig {
+  id: 'shelly' | 'ahoy' | 'trucki' | 'venus';
+  name: string;
+  host: string;
+  port: number;
+  endpoint: string;
+  enabled: boolean;
+  timeoutMs: number;
+}
+
+export interface HardwareNetworkConfig {
+  devices: {
+    shelly: HardwareDeviceConfig;
+    ahoy: HardwareDeviceConfig;
+    trucki: HardwareDeviceConfig;
+    venus: HardwareDeviceConfig;
+  };
+  strictLiveOnly: boolean;
+  demoSimulationAllowed: boolean;
+}
+
+export interface HardwarePingResult {
+  deviceId: string;
+  success: boolean;
+  latencyMs: number;
+  statusCode: number | null;
+  rawSnippet: string;
+  error?: string;
+  testedUrl: string;
+  timestamp: string;
 }
 
 export interface DiscoveredDevice {
@@ -230,4 +264,28 @@ export interface MqttPublishPreset {
   retain: boolean;
   description: string;
 }
+
+export interface MqttBrokerConfig {
+  enabled: boolean;
+  host: string;
+  port: number;
+  username?: string;
+  password?: string;
+  clientId: string;
+  topics: string[];
+  keepalive: number;
+  reconnectPeriod: number;
+  priority: 'mqtt_first' | 'http_only';
+}
+
+export interface MqttConnectionStatus {
+  connected: boolean;
+  connecting: boolean;
+  error?: string;
+  brokerUrl: string;
+  lastMessageTime: string | null;
+  messageCount: number;
+  activeTopics: string[];
+}
+
 

@@ -19,7 +19,8 @@ import {
   BatteryCharging,
   Sun,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  RefreshCw
 } from 'lucide-react';
 import { DeviceInventoryItem, FirmwareStatus, SolarTelemetry } from '../types';
 import { ParameterAuditView } from './ParameterAuditView';
@@ -29,9 +30,28 @@ interface DeviceInventoryProps {
   devices: DeviceInventoryItem[];
   telemetry?: SolarTelemetry;
   onSelectDevice?: (device: DeviceInventoryItem) => void;
+  isEnriched?: boolean;
+  isAutoDetecting?: boolean;
+  onAutoDetectAndEnrich?: () => void;
+  onResetToUnconfirmed?: () => void;
+  onOpenMqttConfig?: () => void;
+  onOpenHardwareConfig?: () => void;
+  mqttStatus?: { connected: boolean; brokerUrl: string; lastMessageTime: string | null };
+  telemetrySource?: 'mqtt' | 'http_rest' | 'none';
 }
 
-export const DeviceInventory: React.FC<DeviceInventoryProps> = ({ devices, telemetry = INITIAL_TELEMETRY }) => {
+export const DeviceInventory: React.FC<DeviceInventoryProps> = ({ 
+  devices, 
+  telemetry = INITIAL_TELEMETRY,
+  isEnriched = false,
+  isAutoDetecting = false,
+  onAutoDetectAndEnrich,
+  onResetToUnconfirmed,
+  onOpenMqttConfig,
+  onOpenHardwareConfig,
+  mqttStatus,
+  telemetrySource
+}) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Alle');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showHistoric, setShowHistoric] = useState<boolean>(false);
@@ -169,6 +189,59 @@ export const DeviceInventory: React.FC<DeviceInventoryProps> = ({ devices, telem
           </div>
         </div>
 
+        {/* Auto-Discovery & Data Enrichment Action Bar */}
+        <div className="mt-4 p-3.5 rounded-xl bg-slate-900/90 border border-sky-500/20 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <div className={`p-2 rounded-lg ${isEnriched ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded text-[10px] font-mono-code font-bold uppercase tracking-wider ${
+                  isEnriched 
+                    ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/30' 
+                    : 'bg-amber-950/80 text-amber-300 border border-amber-500/30'
+                }`}>
+                  {isEnriched ? '✓ Automatisch erkannt & ergänzt' : 'Reiner Ist-Zustand (Unbestätigte Werte auf „nicht erfasst“)'}
+                </span>
+                <span className="text-[11px] font-mono-code text-slate-400">
+                  {isEnriched ? '11 von 11 Geräten mit Live-IDs angereichert' : 'Keine erfundenen Angaben'}
+                </span>
+              </div>
+              <p className="text-slate-400 text-[11px] mt-0.5">
+                {isEnriched
+                  ? 'Seriennummern, MAC-Adressen und Firmwarestände wurden über lokale Schnittstellen (Shelly RPC, Ahoy REST, T2SG, Venus OS) ermittelt.'
+                  : 'Unbestätigte Angaben stehen auf „nicht erfasst“. Klicken Sie auf den Button, um die Gerätedaten via lokale APIs abzufragen.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onAutoDetectAndEnrich}
+              disabled={isAutoDetecting}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md ${
+                isAutoDetecting
+                  ? 'bg-sky-700 text-white cursor-wait'
+                  : 'bg-sky-500 hover:bg-sky-400 text-slate-950 hover:shadow-cyan-500/20'
+              }`}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isAutoDetecting ? 'animate-spin' : ''}`} />
+              <span>{isAutoDetecting ? 'Scanne lokale APIs...' : 'Daten automatisch erkennen & ergänzen'}</span>
+            </button>
+
+            {isEnriched && onResetToUnconfirmed && (
+              <button
+                onClick={onResetToUnconfirmed}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-colors border border-white/[0.08]"
+                title="Alle Werte wieder auf den unbestätigten Zustand 'nicht erfasst' zurücksetzen"
+              >
+                Auf „nicht erfasst“ zurücksetzen
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Filter bar & Search */}
         <div className="mt-4 pt-4 border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-3">
           {/* Category Tabs */}
@@ -225,7 +298,6 @@ export const DeviceInventory: React.FC<DeviceInventoryProps> = ({ devices, telem
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredDevices.map((device) => {
           const isExpanded = expandedDeviceId === device.id;
-          const isLocalMdns = device.hostname.includes('.local');
           const testStatus = testedHost[device.id];
           const isCurrentlyTesting = testingHostId === device.id;
           
@@ -276,15 +348,37 @@ export const DeviceInventory: React.FC<DeviceInventoryProps> = ({ devices, telem
                   </div>
                   <div className="p-2 rounded bg-slate-900/50 border border-slate-800">
                     <span className="text-[10px] text-slate-500 block">FIRMWARE:</span>
-                    <span className="text-cyan-300">
+                    <span className={device.firmwareVersion === 'nicht erfasst' ? 'text-slate-500 italic' : 'text-cyan-300 font-semibold'}>
                       {showHistoric && device.id === 'shelly-pro-3em' ? 'v1.3.8 (Alt)' : device.firmwareVersion}
                     </span>
                   </div>
-                  <div className="p-2 rounded bg-slate-900/50 border border-slate-800 col-span-2 sm:col-span-1">
-                    <span className="text-[10px] text-slate-500 block">STANDORT:</span>
-                    <span className="text-slate-300 truncate block">{device.location}</span>
+                  <div className="p-2 rounded bg-slate-900/50 border border-slate-800">
+                    <span className="text-[10px] text-slate-500 block">SERIENNUMMER:</span>
+                    <span className={!device.serialNumber || device.serialNumber === 'nicht erfasst' ? 'text-slate-500 italic' : 'text-amber-300 font-bold truncate block'}>
+                      {device.serialNumber || 'nicht erfasst'}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded bg-slate-900/50 border border-slate-800">
+                    <span className="text-[10px] text-slate-500 block">MAC-ADRESSE:</span>
+                    <span className={device.mac === 'nicht erfasst' ? 'text-slate-500 italic' : 'text-slate-200 truncate block'}>
+                      {device.mac}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded bg-slate-900/50 border border-slate-800 col-span-2">
+                    <span className="text-[10px] text-slate-500 block">STANDORT / SPECS:</span>
+                    <span className="text-slate-300 truncate block">
+                      {device.location !== 'nicht erfasst' ? device.location : (device.hardwareSpecs !== 'nicht erfasst' ? device.hardwareSpecs : 'nicht erfasst')}
+                    </span>
                   </div>
                 </div>
+
+                {/* Auto-detected badge if enriched */}
+                {device.isEnriched && device.detectedVia && (
+                  <div className="mt-2.5 px-2.5 py-1 rounded-lg bg-emerald-950/40 border border-emerald-500/20 text-[11px] font-mono-code text-emerald-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span className="truncate">Erkannt via: {device.detectedVia}</span>
+                  </div>
+                )}
 
                 {/* Live URL & Connectivity Quick Action Bar */}
                 <div className="mt-3 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/90 flex flex-wrap items-center justify-between gap-2 text-xs font-mono-code">
@@ -314,6 +408,43 @@ export const DeviceInventory: React.FC<DeviceInventoryProps> = ({ devices, telem
                     </a>
                   </div>
                 </div>
+
+                {/* Mosquitto MQTT Dedicated Configuration Button */}
+                {(device.id === 'mosquitto-broker' || device.name.toLowerCase().includes('mosquitto')) && onOpenMqttConfig && (
+                  <div className="mt-3 p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <Radio className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
+                      <div>
+                        <span className="font-semibold text-emerald-300 block">Mosquitto MQTT Broker (LXC 201)</span>
+                        <span className="text-[10px] font-mono text-slate-400">
+                          Status: {mqttStatus?.connected ? '🟢 Verbunden (MQTT-Live aktiv)' : '🟡 Getrennt (HTTP-REST Fallback aktiv)'}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onOpenMqttConfig}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-all shadow-md shadow-emerald-500/20"
+                    >
+                      <Sliders className="w-3.5 h-3.5" />
+                      <span>MQTT-Einstellungen (Port 1883, User, PW)</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* LAN Hardware Configuration Button for Inverter/Meter */}
+                {(device.id === 'shelly-pro3em' || device.id === 'ahoy-dtu' || device.id === 'trucki-t2sg' || device.id === 'victron-venus-os') && onOpenHardwareConfig && (
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={onOpenHardwareConfig}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/20 text-[11px] font-mono transition-all"
+                    >
+                      <Sliders className="w-3 h-3 text-sky-400" />
+                      <span>LAN-IP & Port anpassen</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Short notes */}
                 {device.notes && (

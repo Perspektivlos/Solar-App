@@ -3,6 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <script>
+      // Suppress Vite HMR WebSocket connection errors in sandbox environments where HMR is disabled
+      window.addEventListener('error', function(event) {
+        var msg = '' + (event.message || '');
+        var file = '' + (event.filename || '');
+        if (msg.includes('WebSocket') || msg.includes('ws://') || msg.includes('wss://') || file.includes('@vite/client')) {
+          event.stopImmediatePropagation();
+          event.preventDefault();
+          return true;
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function(event) {
+        var reasonStr = '' + (event.reason ? (event.reason.message || event.reason.stack || event.reason) : '');
+        if (reasonStr.includes('WebSocket') || reasonStr.includes('@vite/client')) {
+          event.stopImmediatePropagation();
+          event.preventDefault();
+        }
+      }, true);
+    </script>
     <title>Solar-Lokal-App</title>
     <meta name="description" content="Lokales Solar- und Energiemanagementsystem mit Live-Steuerung, MQTT- und InfluxDB-Dokumentation, Proxmox-Infrastruktur und Hardware-Diagnose." />
     

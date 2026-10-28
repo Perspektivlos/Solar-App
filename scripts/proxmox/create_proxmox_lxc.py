@@ -157,8 +157,8 @@ def ensure_debian_template(template_storage):
         raise RuntimeError("Konnte kein Debian 12 Template finden.")
 
 
-def create_lxc(vmid, hostname, memory, cores, disk, storage, tmpl, bridge, ip_config, onboot, unprivileged):
-    """Erstellt den LXC-Container via Proxmox pct Tool."""
+def create_lxc(vmid, hostname, memory, cores, disk, storage, tmpl, bridge, ip_config, onboot, unprivileged, nameserver="192.168.0.1 8.8.8.8"):
+    """Erstellt den LXC-Container via Proxmox pct Tool inklusive DNS Nameserver."""
     print(f"\n{C_CYAN}[*] Erstelle LXC-Container ID {vmid} ({hostname})...{C_RESET}")
 
     unprivileged_flag = "1" if unprivileged else "0"
@@ -174,6 +174,7 @@ def create_lxc(vmid, hostname, memory, cores, disk, storage, tmpl, bridge, ip_co
         f"--cores {cores} "
         f"--rootfs {storage}:{disk} "
         f"--net0 {net_param} "
+        f"--nameserver \"{nameserver}\" "
         f"--ostype debian "
         f"--unprivileged {unprivileged_flag} "
         f"--features nesting=1 "
@@ -183,7 +184,9 @@ def create_lxc(vmid, hostname, memory, cores, disk, storage, tmpl, bridge, ip_co
 
     print(f"{C_YELLOW}[>] {cmd}{C_RESET}")
     run_cmd(cmd, check=True, capture_output=False)
-    print(f"{C_GREEN}[✓] LXC-Container {vmid} erfolgreich erstellt!{C_RESET}")
+    # Sicherstellen, dass der Nameserver explizit in der Container-Konfig hinterlegt ist
+    run_cmd(f"pct set {vmid} -nameserver \"{nameserver}\"", check=False)
+    print(f"{C_GREEN}[✓] LXC-Container {vmid} erfolgreich erstellt (DNS: {nameserver})!{C_RESET}")
 
 
 def start_lxc_and_wait(vmid):
@@ -247,6 +250,7 @@ def main():
     parser.add_argument("--bridge", type=str, default="vmbr0", help="Netzwerkbrücke (Standard: vmbr0)")
     parser.add_argument("--ip", type=str, default="dhcp", help="IP-Adresse (z.B. dhcp oder 192.168.0.150/24)")
     parser.add_argument("--gw", type=str, default=None, help="Gateway IP bei statischer IP (z.B. 192.168.0.1)")
+    parser.add_argument("--nameserver", type=str, default="192.168.0.1 8.8.8.8", help="DNS-Nameserver (Standard: '192.168.0.1 8.8.8.8')")
     parser.add_argument("--auto-install", action="store_true", help="Startet die App-Installation direkt nach der Erstellung")
     parser.add_argument("--privileged", action="store_true", help="Erstellt einen privilegierten Container (Standard: unprivilegiert)")
 
@@ -267,6 +271,7 @@ def main():
     print(f"  • CPU / RAM    : {C_CYAN}{args.cores} Kerne / {args.memory} MB{C_RESET}")
     print(f"  • Festplatte   : {C_CYAN}{args.disk} GB auf Pool '{args.storage}'{C_RESET}")
     print(f"  • Netzwerk     : {C_CYAN}{args.bridge} ({ip_config}){C_RESET}")
+    print(f"  • DNS Server   : {C_CYAN}{args.nameserver}{C_RESET}")
     print(f"  • Modus        : {C_CYAN}{'Privilegiert' if args.privileged else 'Unprivilegiert (Sicher)'}{C_RESET}")
     print("-" * 60)
 
@@ -285,7 +290,8 @@ def main():
         bridge=args.bridge,
         ip_config=ip_config,
         onboot=True,
-        unprivileged=not args.privileged
+        unprivileged=not args.privileged,
+        nameserver=args.nameserver
     )
 
     # 3. Container starten & IP ermitteln
