@@ -162,7 +162,7 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
       sourceDoc: 'Handbuch T2SG v1.15',
       sourcePage: 'S. 7 (Thermoschutz)',
       status: 'passed',
-      explanation: 'Inverter-Kühlkörpergrenze. Bei Erreichen von 75 °C wird die Leistung über T2SG/ACSETPOINTOVR auf 0 W gesetzt. Aktuell: 39.2 °C (Unkritisch).',
+      explanation: 'Inverter-Kühlkörpergrenze. Bei Erreichen von 75 °C wird die Leistung über TRUCKI/ACSETPOINTOVR auf 0 W gesetzt. Aktuell: 39.2 °C (Unkritisch).',
       tolerance: 'Maximal 75 °C'
     },
     {
@@ -172,7 +172,7 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
       parameter: 'MQTT Topics Case-Sensitivity',
       configuredValue: 'STRIKT GROSSBUCHSTABEN',
       unit: 'Syntax',
-      nominalRange: 'T2SG/ACDISPLAY, T2SG/VBAT, etc.',
+      nominalRange: 'TRUCKI/ACDISPLAY, TRUCKI/VBAT, etc.',
       sourceDoc: 'Handbuch T2SG v1.15',
       sourcePage: 'S. 11–12 (MQTT-Referenz)',
       status: 'passed',
@@ -183,7 +183,7 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
     // 2. Lumentree SUN-G2
     {
       id: 'lum-dc-range',
-      device: 'Lumentree SUN-G2 (H)',
+      device: 'Lumentree SUN-2000G2-H',
       category: 'lumentree',
       parameter: 'DC Eingangsspannungsbereich (Modell H)',
       configuredValue: '45 – 90',
@@ -197,7 +197,7 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
     },
     {
       id: 'lum-start-v',
-      device: 'Lumentree SUN-G2 (H)',
+      device: 'Lumentree SUN-2000G2-H',
       category: 'lumentree',
       parameter: 'DC Mindeststartspannung',
       configuredValue: '49.0',
@@ -211,16 +211,16 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
     },
     {
       id: 'lum-max-power',
-      device: 'Lumentree SUN-G2 (H)',
+      device: 'Lumentree SUN-2000G2-H',
       category: 'lumentree',
       parameter: 'Maximale kontinuierliche AC-Ausgangsleistung',
-      configuredValue: '1800',
+      configuredValue: '2000',
       unit: 'W',
-      nominalRange: '1800 W Dauerlast (Peak 2000 W)',
+      nominalRange: '2000 W max. / 2000 W kontinuierlich',
       sourceDoc: 'Lumentree SUN Anleitung',
-      sourcePage: 'S. 4 (Leistungsdiagramm)',
+      sourcePage: 'S. 3 (Tabelle 1, Modelle G2)',
       status: 'passed',
-      explanation: 'Lumentree 2000G2 kann bis zu 1800 W kontinuierlich einspeisen. Aktuelles dynamisches Nulleinspeise-Regellimit ist auf 600 W begrenzt.',
+      explanation: 'Der SUN-2000G2-H speist laut Tabelle 1 der Anleitung bis 2000 W kontinuierlich ein (DC 45-90 V, Einschaltspannung 49 V, AC 185-265 V, max. 92 % Wirkungsgrad). Das aktive Regellimit kommt live vom T2SG (POWERLIMIT / TRUCKI/MAXPOWER).',
       tolerance: 'Max. 2000 W'
     },
 

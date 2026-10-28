@@ -31,7 +31,7 @@ interface NavbarProps {
   lastTickTime: string;
   deviceInfo: DeviceInfo;
   onOpenDeviceSettings: () => void;
-  backendInfo?: { isOnline: boolean; isLiveLAN: boolean };
+  backendInfo?: { isOnline: boolean; isLiveLAN: boolean; sources?: Record<string, string> };
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -134,10 +134,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' 
                 : 'border-white/[0.08] bg-slate-900/60 text-slate-300'
             }`}
-            title={backendInfo?.isLiveLAN ? "Echte LAN-Telemetrie aktiv (Shelly, AhoyDTU, Trucki)" : "Lokales Backend aktiv (LAN-Hardware im lokalen Subnetz oder Simulation)"}
+            title={backendInfo?.sources
+              ? `Quellen: ${Object.entries(backendInfo.sources).map(([k, v]) => `${k}=${v}`).join(', ')}`
+              : "Lokales Backend aktiv (LAN-Hardware im lokalen Subnetz oder Simulation)"}
           >
             <span className={`w-1.5 h-1.5 rounded-full ${backendInfo?.isLiveLAN ? 'bg-emerald-400 animate-pulse' : 'bg-sky-400'}`} />
-            <span className="text-[11px]">{backendInfo?.isLiveLAN ? 'LAN Live' : 'Backend REST'}</span>
+            <span className="text-[11px]">{backendInfo?.isLiveLAN ? 'LAN Live' : backendInfo?.sources && Object.values(backendInfo.sources).includes('live') ? 'LAN teilweise' : 'Backend REST'}</span>
           </div>
 
           {/* Diagnose / Herkunft Inspector Trigger */}
