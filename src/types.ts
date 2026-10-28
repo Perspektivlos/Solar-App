@@ -103,6 +103,8 @@ export interface DeviceInventoryItem {
   }[];
   isIstZustand: boolean;
   notes?: string;
+  isEnriched?: boolean;
+  detectedVia?: string;
 }
 
 export interface NetworkHost {

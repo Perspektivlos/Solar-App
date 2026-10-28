@@ -213,7 +213,13 @@ export const NetworkIpPlan: React.FC<NetworkIpPlanProps> = ({
                         </a>
                       )}
                     </div>
-                    <div className="text-[10px] text-slate-500">{host.mac}</div>
+                    <div className="text-[10px] font-mono-code mt-0.5">
+                      {host.mac === 'nicht erfasst' ? (
+                        <span className="text-slate-500 italic">MAC: nicht erfasst</span>
+                      ) : (
+                        <span className="text-emerald-400/90 font-mono-code">MAC: {host.mac}</span>
+                      )}
+                    </div>
                   </td>
                   <td className="p-3 text-slate-400">{host.deviceCategory}</td>
                   <td className="p-3">
