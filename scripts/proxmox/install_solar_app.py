@@ -252,10 +252,10 @@ def step_setup_app_source(repo_url=None):
 
     if os.path.exists(os.path.join(potential_root, "package.json")):
         print(f"{C_GREEN}[✓] Lokales Projekt im übergeordneten Verzeichnis gefunden. Synchronisiere nach {APP_DIR}...{C_RESET}")
-        run_cmd(f"rsync -av --exclude 'node_modules' --exclude '.git' --exclude 'dist' {potential_root}/ {APP_DIR}/")
+        run_cmd(f"rsync -av --exclude 'node_modules' --exclude '.git' {potential_root}/ {APP_DIR}/")
     elif os.path.exists(os.path.join(current_script_dir, "package.json")):
         print(f"{C_GREEN}[✓] Projekt im aktuellen Verzeichnis gefunden. Kopiere nach {APP_DIR}...{C_RESET}")
-        run_cmd(f"rsync -av --exclude 'node_modules' --exclude '.git' --exclude 'dist' {current_script_dir}/ {APP_DIR}/")
+        run_cmd(f"rsync -av --exclude 'node_modules' --exclude '.git' {current_script_dir}/ {APP_DIR}/")
     elif repo_url:
         print(f"{C_YELLOW}[*] Klone Repository von {repo_url}...{C_RESET}")
         ensure_default_route()
@@ -287,24 +287,39 @@ def step_setup_app_source(repo_url=None):
         print(f"{C_YELLOW}[*] Erstelle App-Struktur in {APP_DIR}... Bitte kopieren Sie Ihre Dateien nach {APP_DIR}.{C_RESET}")
 
 
-def step_build_app():
-    print(f"\n{C_CYAN}[3/5] Installiere Node-Dependencies & erstelle Production Build...{C_RESET}")
+def step_build_app(force_build=False):
+    print(f"\n{C_CYAN}[3/5] Prüfe Anwendungs-Build & Bereitstellung...{C_RESET}")
+    dist_index = os.path.join(APP_DIR, "dist", "index.html")
+
+    # 1. Prüfen, ob fertiges Bundle bereits existiert
+    if os.path.exists(dist_index) and not force_build:
+        print(f"{C_GREEN}{C_BOLD}[⚡] Vorkompiliertes 'dist'-Bundle gefunden: {dist_index}{C_RESET}")
+        print(f"{C_GREEN}[✓] Überspringe 'npm run build' – sofortige blitzschnelle Bereitstellung über Nginx!{C_RESET}")
+        return True
+
     if not os.path.exists(os.path.join(APP_DIR, "package.json")):
-        print(f"{C_RED}[!] Kein package.json in {APP_DIR} gefunden! Bitte stellen Sie sicher, dass die App-Dateien vorhanden sind.{C_RESET}")
+        print(f"{C_RED}[!] Kein package.json in {APP_DIR} gefunden!{C_RESET}")
         return False
 
-    print(f"{C_YELLOW}[>] Führe 'npm install' aus (dies kann einen Moment dauern)...{C_RESET}")
+    print(f"{C_YELLOW}[>] Führe 'npm install' aus...{C_RESET}")
     run_cmd(f"cd {APP_DIR} && npm install --no-audit --no-fund")
 
+    # 2. Native Binding Absicherung für Tailwind CSS v4 in LXC
+    print(f"{C_YELLOW}[>] Sichere natives Binding '@tailwindcss/oxide-linux-x64-gnu' ab...{C_RESET}")
+    run_cmd(f"cd {APP_DIR} && npm install --no-audit --no-fund @tailwindcss/oxide-linux-x64-gnu", check=False)
+
     print(f"{C_YELLOW}[>] Führe 'npm run build' aus...{C_RESET}")
-    run_cmd(f"cd {APP_DIR} && npm run build")
+    build_res = run_cmd(f"cd {APP_DIR} && npm run build", check=False)
     
-    dist_index = os.path.join(APP_DIR, "dist", "index.html")
-    if os.path.exists(dist_index):
+    if build_res.returncode == 0 and os.path.exists(dist_index):
         print(f"{C_GREEN}[✓] Production Build erfolgreich erstellt: {dist_index}{C_RESET}")
         return True
     else:
-        print(f"{C_RED}[FEHLER] 'dist/index.html' wurde nach dem Build nicht gefunden.{C_RESET}")
+        if os.path.exists(dist_index):
+            print(f"{C_GREEN}[✓] 'dist/index.html' ist vorhanden und wird genutzt.{C_RESET}")
+            return True
+        print(f"{C_RED}[!] Build im Container nicht erfolgreich abgeschlossen.{C_RESET}")
+        print(f"{C_YELLOW}Hinweis: Kopieren Sie den fertigen 'dist/'-Ordner nach {APP_DIR}/dist für sofortige Nginx-Bereitstellung.{C_RESET}")
         return False
 
 
@@ -418,6 +433,7 @@ def main():
     parser.add_argument("--port", type=int, default=80, help="Webserver Port (Standard: 80)")
     parser.add_argument("--repo", type=str, default="https://github.com/Perspektivlos/Solar-App.git", help="Git Repository URL zum Klonen (Standard: Perspektivlos/Solar-App.git)")
     parser.add_argument("--skip-build", action="store_true", help="Überspringt den 'npm run build' Schritt")
+    parser.add_argument("--force-build", action="store_true", help="Erzwingt npm run build auch wenn dist/ bereits existiert")
     parser.add_argument("--update", action="store_true", help="Führt vorab apt-get update aus (Standard: deaktiviert für Schnellinstallation)")
     args = parser.parse_args()
 
@@ -432,9 +448,9 @@ def main():
     # 2. Quellcode kopieren / vorbereiten
     step_setup_app_source(repo_url=args.repo)
 
-    # 3. App bauen
+    # 3. App prüfen & ggf. bauen (nutzt vorrangig existierendes dist/ Bundle)
     if not args.skip_build:
-        step_build_app()
+        step_build_app(force_build=args.force_build)
 
     # 4. Nginx einrichten
     step_configure_nginx(web_port=args.port)

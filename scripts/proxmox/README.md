@@ -67,9 +67,9 @@ Das Skript erledigt automatisch:
 1. Schnelle Installation der Standard-Systempakete (`curl`, `git`, `nginx`, `build-essential`, `nodejs`, `npm`) ohne zeitintensives `apt-get update`
 2. Sofortige Nutzung der Debian-eigenen Node.js & npm Pakete (keine externen Repositories / kein NodeSource)
 3. Kopieren oder Klonen des Quellcodes (`https://github.com/Perspektivlos/Solar-App.git`) nach `/opt/solar-lokal`
-4. `npm install` und `npm run build`
+4. Sofortige Bereitstellung des fertigen `dist`-Bundles via Nginx (oder nativer Build mit `@tailwindcss/oxide-linux-x64-gnu`)
 5. Konfiguration des **Nginx** Webservers (Port 80 mit Gzip & SPA Fallback)
-6. Einrichtung des **Systemd Services** (`solar-lokal.service` auf Port 3000)
+6. Optionaler **Systemd Service** (`solar-lokal.service` auf Port 3000)
 
 ---
 

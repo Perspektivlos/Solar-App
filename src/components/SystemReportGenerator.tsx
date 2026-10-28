@@ -177,13 +177,31 @@ def install_application():
     print("[*] 1/4 Installiere Standard-Pakete (curl, git, nginx, build-essential, nodejs, npm)...")
     exec_in_container("apt-get install -y --no-install-recommends curl git nginx build-essential nodejs npm")
     
-    # 2. Repository klonen und bauen
-    print("[*] 2/4 Klone Solar-Lokal-App und installiere npm dependencies...")
+    # 2. Repository klonen und Build prüfen
+    print("[*] 2/4 Klone Solar-Lokal-App und prüfe Build-Status...")
     exec_in_container(f"rm -rf {APP_DIR} && git clone {REPO_URL} {APP_DIR}")
-    exec_in_container(f"cd {APP_DIR} && npm install && npm run build")
+    # Falls kein vorkompiliertes dist/ existiert, wird npm mit nativem Binding ausgeführt
+    exec_in_container(f"if [ ! -f {APP_DIR}/dist/index.html ]; then cd {APP_DIR} && npm install --no-audit --no-fund && npm install @tailwindcss/oxide-linux-x64-gnu --no-audit && npm run build; fi")
     
-    # 3. Systemd Service für automatischen Neustart nach Reboot anlegen
-    print("[*] 3/4 Richte systemd Service 'solar-lokal.service' ein...")
+    # 3. Nginx Webserver für sofortiges Servieren von dist/ auf Port 80 konfigurieren
+    print("[*] 3/4 Konfiguriere Nginx für sofortige Bereitstellung (Port 80)...")
+    nginx_conf = f"""server {{
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    root {APP_DIR}/dist;
+    index index.html;
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+    location / {{
+        try_files $uri $uri/ /index.html;
+    }}
+}}"""
+    exec_in_container(f"cat << 'EOF' > /etc/nginx/sites-available/solar-lokal\\n{nginx_conf}\\nEOF")
+    exec_in_container("ln -sf /etc/nginx/sites-available/solar-lokal /etc/nginx/sites-enabled/solar-lokal && rm -f /etc/nginx/sites-enabled/default && systemctl restart nginx && systemctl enable nginx")
+
+    # 4. Optionaler Systemd Service für Port 3000
+    print("[*] 4/4 Richte systemd Service 'solar-lokal.service' (Port 3000) ein...")
     service_def = f"""[Unit]
 Description=Solar-Lokal Energy Management Core
 After=network.target
@@ -201,15 +219,12 @@ Environment=NODE_ENV=production
 WantedBy=multi-user.target
 """
     exec_in_container(f"cat << 'EOF' > /etc/systemd/system/solar-lokal.service\\n{service_def}\\nEOF")
-    
-    # 4. Service aktivieren & starten
-    print("[*] 4/4 Aktiviere & starte Service...")
-    exec_in_container("systemctl daemon-reload && systemctl enable --now solar-lokal.service")
+    exec_in_container("systemctl daemon-reload && systemctl enable --now solar-lokal.service || true")
     time.sleep(2)
     
     print("\\n" + "="*60)
-    print("[✓] FERTIG! Solar-Lokal-App läuft dauerhaft im Hintergrund.")
-    print(f"[✓] Dashboard erreichbar unter: http://192.168.0.205:{WEB_PORT}")
+    print("[✓] FERTIG! Solar-Lokal-App läuft über performanten Nginx-Webserver.")
+    print(f"[✓] Dashboard erreichbar unter: http://192.168.0.205 (Port 80) oder :3000")
     print("="*60)
 
 if __name__ == "__main__":
@@ -255,11 +270,31 @@ pct exec $CTID -- bash -c "ip route show default | grep -q default || ip route a
 pct exec $CTID -- bash -c "grep -q 'github.com' /etc/hosts || echo -e '140.82.121.4 github.com\\n140.82.121.3 github.com' >> /etc/hosts"
 pct exec $CTID -- bash -c "apt-get install -y --no-install-recommends curl git nginx build-essential nodejs npm"
 
-echo "=== Clone Solar-App Repository ==="
+echo "=== Clone Solar-App Repository & prüfe dist/ ==="
 pct exec $CTID -- bash -c "git clone https://github.com/Perspektivlos/Solar-App.git /opt/solar-lokal"
-pct exec $CTID -- bash -c "cd /opt/solar-lokal && npm install && npm run build"
+pct exec $CTID -- bash -c "if [ ! -f /opt/solar-lokal/dist/index.html ]; then cd /opt/solar-lokal && npm install --no-audit --no-fund && npm install @tailwindcss/oxide-linux-x64-gnu --no-audit && npm run build; fi"
 
-echo "=== Systemd Service für automatischen Start einrichten ==="
+echo "=== Konfiguriere Nginx Webserver für sofortige Auslieferung (Port 80) ==="
+cat << 'EOF' | pct exec $CTID -- tee /etc/nginx/sites-available/solar-lokal
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    root /opt/solar-lokal/dist;
+    index index.html;
+    gzip on;
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+EOF
+
+pct exec $CTID -- ln -sf /etc/nginx/sites-available/solar-lokal /etc/nginx/sites-enabled/solar-lokal
+pct exec $CTID -- rm -f /etc/nginx/sites-enabled/default
+pct exec $CTID -- systemctl restart nginx
+pct exec $CTID -- systemctl enable nginx
+
+echo "=== Systemd Service für Hintergrundbetrieb (Port 3000) ==="
 cat << 'EOF' | pct exec $CTID -- tee /etc/systemd/system/solar-lokal.service
 [Unit]
 Description=Solar-Lokal App Core Service
@@ -278,9 +313,9 @@ WantedBy=multi-user.target
 EOF
 
 pct exec $CTID -- systemctl daemon-reload
-pct exec $CTID -- systemctl enable --now solar-lokal.service
+pct exec $CTID -- systemctl enable --now solar-lokal.service || true
 
-echo "=== Installation erfolgreich! Web-UI erreichbar unter: http://$IP_ADDR:3000 ==="
+echo "=== Installation erfolgreich! Web-UI erreichbar unter: http://$IP_ADDR ==="
 `;
 
   const DOCKER_COMPOSE_STACK = `version: '3.8'
