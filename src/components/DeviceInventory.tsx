@@ -34,6 +34,10 @@ interface DeviceInventoryProps {
   isAutoDetecting?: boolean;
   onAutoDetectAndEnrich?: () => void;
   onResetToUnconfirmed?: () => void;
+  onOpenMqttConfig?: () => void;
+  onOpenHardwareConfig?: () => void;
+  mqttStatus?: { connected: boolean; brokerUrl: string; lastMessageTime: string | null };
+  telemetrySource?: 'mqtt' | 'http_rest' | 'none';
 }
 
 export const DeviceInventory: React.FC<DeviceInventoryProps> = ({ 
@@ -42,7 +46,11 @@ export const DeviceInventory: React.FC<DeviceInventoryProps> = ({
   isEnriched = false,
   isAutoDetecting = false,
   onAutoDetectAndEnrich,
-  onResetToUnconfirmed
+  onResetToUnconfirmed,
+  onOpenMqttConfig,
+  onOpenHardwareConfig,
+  mqttStatus,
+  telemetrySource
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Alle');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -400,6 +408,43 @@ export const DeviceInventory: React.FC<DeviceInventoryProps> = ({
                     </a>
                   </div>
                 </div>
+
+                {/* Mosquitto MQTT Dedicated Configuration Button */}
+                {(device.id === 'mosquitto-broker' || device.name.toLowerCase().includes('mosquitto')) && onOpenMqttConfig && (
+                  <div className="mt-3 p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <Radio className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
+                      <div>
+                        <span className="font-semibold text-emerald-300 block">Mosquitto MQTT Broker (LXC 201)</span>
+                        <span className="text-[10px] font-mono text-slate-400">
+                          Status: {mqttStatus?.connected ? '🟢 Verbunden (MQTT-Live aktiv)' : '🟡 Getrennt (HTTP-REST Fallback aktiv)'}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onOpenMqttConfig}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-all shadow-md shadow-emerald-500/20"
+                    >
+                      <Sliders className="w-3.5 h-3.5" />
+                      <span>MQTT-Einstellungen (Port 1883, User, PW)</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* LAN Hardware Configuration Button for Inverter/Meter */}
+                {(device.id === 'shelly-pro3em' || device.id === 'ahoy-dtu' || device.id === 'trucki-t2sg' || device.id === 'victron-venus-os') && onOpenHardwareConfig && (
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={onOpenHardwareConfig}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/20 text-[11px] font-mono transition-all"
+                    >
+                      <Sliders className="w-3 h-3 text-sky-400" />
+                      <span>LAN-IP & Port anpassen</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Short notes */}
                 {device.notes && (

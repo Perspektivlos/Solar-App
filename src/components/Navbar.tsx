@@ -32,8 +32,17 @@ interface NavbarProps {
   lastTickTime: string;
   deviceInfo: DeviceInfo;
   onOpenDeviceSettings: () => void;
-  backendInfo?: { isOnline: boolean; isLiveLAN: boolean };
+  backendInfo?: { 
+    isOnline: boolean; 
+    isLiveLAN: boolean; 
+    liveDevicesCount?: number;
+    strictLiveOnly?: boolean;
+    demoSimulationAllowed?: boolean;
+    telemetrySource?: 'mqtt' | 'http_rest' | 'none';
+  };
   onOpenUpdateModal?: () => void;
+  onOpenHardwareConfig?: () => void;
+  onOpenMqttConfig?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -47,7 +56,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   deviceInfo,
   onOpenDeviceSettings,
   backendInfo,
-  onOpenUpdateModal
+  onOpenUpdateModal,
+  onOpenHardwareConfig,
+  onOpenMqttConfig
 }) => {
   const tabs = [
     { id: 'dashboard', label: 'Steuerzentrale', icon: Zap, keyNumber: '1' },
@@ -130,18 +141,64 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </button>
 
-          {/* Backend Status Indicator (Live LAN vs Server Simulation) */}
-          <div 
-            className={`hidden sm:flex items-center gap-1.5 px-2 py-1 rounded text-xs font-mono-code border transition-all ${
-              backendInfo?.isLiveLAN 
-                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' 
-                : 'border-white/[0.08] bg-slate-900/60 text-slate-300'
-            }`}
-            title={backendInfo?.isLiveLAN ? "Echte LAN-Telemetrie aktiv (Shelly, AhoyDTU, Trucki)" : "Lokales Backend aktiv (LAN-Hardware im lokalen Subnetz oder Simulation)"}
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${backendInfo?.isLiveLAN ? 'bg-emerald-400 animate-pulse' : 'bg-sky-400'}`} />
-            <span className="text-[11px]">{backendInfo?.isLiveLAN ? 'LAN Live' : 'Backend REST'}</span>
-          </div>
+          {/* Interactive Hardware & Live Status Badge */}
+          {onOpenHardwareConfig && (
+            <button
+              onClick={onOpenHardwareConfig}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono-code border transition-all ${
+                backendInfo?.telemetrySource === 'mqtt'
+                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+                  : backendInfo?.telemetrySource === 'http_rest'
+                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
+                  : backendInfo?.strictLiveOnly
+                  ? 'border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20'
+                  : 'border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
+              }`}
+              title="Klicken, um Hardware-IPs & Live-Verbindung zu prüfen/anzupassen"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                backendInfo?.telemetrySource === 'mqtt'
+                  ? 'bg-emerald-400 animate-pulse' 
+                  : backendInfo?.telemetrySource === 'http_rest'
+                  ? 'bg-amber-400 animate-pulse'
+                  : backendInfo?.strictLiveOnly
+                  ? 'bg-rose-400'
+                  : 'bg-amber-400'
+              }`} />
+              <span className="text-[11px] font-semibold">
+                {backendInfo?.telemetrySource === 'mqtt'
+                  ? `MQTT Live (${backendInfo?.liveDevicesCount || 4}/4)`
+                  : backendInfo?.telemetrySource === 'http_rest'
+                  ? `REST Fallback (${backendInfo?.liveDevicesCount || 0}/4)`
+                  : backendInfo?.strictLiveOnly
+                  ? `Reiner Live-Modus (${backendInfo?.liveDevicesCount || 0}/4)`
+                  : 'Demo-Modus'}
+              </span>
+            </button>
+          )}
+
+          {/* Mosquitto MQTT Broker Trigger */}
+          {onOpenMqttConfig && (
+            <button
+              onClick={onOpenMqttConfig}
+              className="hidden lg:flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20 text-xs transition-all font-mono"
+              title="Mosquitto MQTT Broker (192.168.0.201:1883) konfigurieren"
+            >
+              <Radio className="w-3.5 h-3.5 text-emerald-400" />
+              <span>MQTT (1883)</span>
+            </button>
+          )}
+
+          {/* LAN Hardware & Endpunkte Button */}
+          {onOpenHardwareConfig && (
+            <button
+              onClick={onOpenHardwareConfig}
+              className="hidden xl:flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded bg-slate-800/60 text-slate-300 border border-white/[0.08] hover:bg-slate-800 hover:text-white text-xs transition-all font-mono"
+              title="Hardware-Schnittstellen (Shelly, AhoyDTU, Trucki, Venus) konfigurieren"
+            >
+              <span>Hardware-IPs</span>
+            </button>
+          )}
 
           {/* Diagnose / Herkunft Inspector Trigger */}
           <button

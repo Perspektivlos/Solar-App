@@ -22,6 +22,7 @@ interface NetworkIpPlanProps {
   onAcceptDiscoveredDevice: (device: DiscoveredDevice) => void;
   onIgnoreDiscoveredDevice: () => void;
   onSimulateScan: () => void;
+  onOpenHardwareConfig?: () => void;
 }
 
 export const NetworkIpPlan: React.FC<NetworkIpPlanProps> = ({
@@ -29,7 +30,8 @@ export const NetworkIpPlan: React.FC<NetworkIpPlanProps> = ({
   discoveredDevice,
   onAcceptDiscoveredDevice,
   onIgnoreDiscoveredDevice,
-  onSimulateScan
+  onSimulateScan,
+  onOpenHardwareConfig
 }) => {
   const [search, setSearch] = useState<string>('');
   const [isScanning, setIsScanning] = useState<boolean>(false);
@@ -141,6 +143,17 @@ export const NetworkIpPlan: React.FC<NetworkIpPlanProps> = ({
                 className="pl-9 pr-3 py-1.5 rounded-lg bg-slate-900/90 border border-white/[0.08] focus:border-sky-500/60 text-xs text-slate-200 placeholder-slate-500 outline-none font-mono-code w-60"
               />
             </div>
+
+            {onOpenHardwareConfig && (
+              <button
+                onClick={onOpenHardwareConfig}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/30 hover:bg-sky-500/20 font-mono transition-all"
+                title="IP-Adressen, Ports und Live-Endpunkte für Shelly, AhoyDTU, Trucki und Venus OS konfigurieren"
+              >
+                <Radio className="w-3.5 h-3.5 text-sky-400" />
+                <span>Live-Schnittstellen</span>
+              </button>
+            )}
 
             <button
               onClick={handleScanClick}
