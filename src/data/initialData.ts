@@ -159,7 +159,7 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
     name: 'Trucki2Shelly Gateway (T2SG) & Lumentree SUN',
     category: 'Batterie / AC-System',
     vendor: 'Trucki / Lumentree',
-    model: 'T2SG v1.15 + Lumentree SUN-2000G2-H',
+    model: 'T2SG v1.15 + Lumentree SUN-G2 (H-Variante 45-90 V DC)',
     serialNumber: NE,
     ip: '192.168.0.102',
     mac: NE,
@@ -171,23 +171,23 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
     hardwareSpecs: 'T2SG-Stick am Lumentree SUN, ohne Modbus-Platine. Zaehlerwert vom Shelly Pro 3EM per HTTP.',
     services: ['HTTP Web-UI', 'JSON Live (/jsonlive)', 'MQTT', 'System-Log (/log.txt)'],
     mqttTopics: [
-      'TRUCKI/ACSETPOINT',
-      'TRUCKI/ACDISPLAY',
-      'TRUCKI/VGRID',
-      'TRUCKI/VBAT',
-      'TRUCKI/TEMPERATURE',
-      'TRUCKI/METER',
-      'TRUCKI/MAXPOWER',
-      'TRUCKI/TARGET',
-      'TRUCKI/DAYENERGY',
-      'TRUCKI/TOTALENERGY',
-      'TRUCKI/STATE',
-      'TRUCKI/ZEPC',
-      'TRUCKI/ACSETPOINTOVR',
-      'TRUCKI/METEROVR',
-      'TRUCKI/MAXPOWEROVR',
-      'TRUCKI/TARGETOVR',
-      'TRUCKI/REBOOTOVR'
+      'T2SG/ACSETPOINT',
+      'T2SG/ACDISPLAY',
+      'T2SG/VGRID',
+      'T2SG/VBAT',
+      'T2SG/TEMPERATURE',
+      'T2SG/METER',
+      'T2SG/MAXPOWER',
+      'T2SG/TARGET',
+      'T2SG/DAYENERGY',
+      'T2SG/TOTALENERGY',
+      'T2SG/STATE',
+      'T2SG/ZEPC',
+      'T2SG/ACSETPOINTOVR',
+      'T2SG/METEROVR',
+      'T2SG/MAXPOWEROVR',
+      'T2SG/TARGETOVR',
+      'T2SG/REBOOTOVR'
     ],
     apiEndpoints: [
       'http://trucki.local/',
@@ -205,15 +205,10 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
       { parameter: 'VBat Cutoff (Abschaltung)', value: '47.0', unit: 'V', description: 'Schutz vor tiefer Entladung (2S Power Queen)' },
       { parameter: 'VBat Reboot (Start)', value: '51.8', unit: 'V', description: 'Wiederanlauf mit Abstand zum Cutoff' },
       { parameter: 'Differenz-Schwellwert', value: '0.5', unit: 'V', description: 'Hysterese' },
-      { parameter: 'Max. AC-Leistung', value: '2000', unit: 'W', description: 'SUN-2000G2-H, max. und kontinuierlich (Anleitung Tabelle 1)' },
-      { parameter: 'DC-Eingangsbereich', value: '45 - 90', unit: 'V', description: 'H-Variante' },
-      { parameter: 'Einschaltspannung', value: '49', unit: 'V', description: 'Laut Lumentree-Anleitung' },
-      { parameter: 'AC-Ausgang', value: '185 - 265', unit: 'V', description: '50 Hz, reine Sinuswelle' },
-      { parameter: 'Max. Wirkungsgrad', value: '92', unit: '%', description: 'Nachtverbrauch 1.5 W' },
-      { parameter: 'MQTT-Prefix', value: 'TRUCKI', unit: '', description: 'Geraetename im T2SG' }
+      { parameter: 'DC-Eingangsbereich', value: '45 - 90', unit: 'V', description: 'SUN-G2 H-Variante laut Lumentree-Anleitung' }
     ],
     isIstZustand: true,
-    notes: 'T2SG regelt den SUN ausserhalb von Venus OS (kein Modbus, kein Venus-Geraet). MQTT-Prefix entspricht dem Geraetenamen im T2SG, hier "TRUCKI" (Topics TRUCKI/#).'
+    notes: 'T2SG regelt den SUN ausserhalb von Venus OS (kein Modbus, kein Venus-Geraet). MQTT-Prefix entspricht dem Geraetenamen im T2SG (Default "T2SG"). Leistungsklasse des SUN noch offen.'
   },
   {
     id: 'lifepo4-battery-bank',
@@ -234,7 +229,7 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
     mqttTopics: [
       `N/${VRM_ID}/solarcharger/288/Dc/0/Voltage`,
       `N/${VRM_ID}/solarcharger/289/Dc/0/Voltage`,
-      'TRUCKI/VBAT'
+      'T2SG/VBAT'
     ],
     apiEndpoints: [],
     location: NE,
@@ -374,7 +369,7 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
     location: NE,
     operatingLimits: [],
     isIstZustand: true,
-    notes: 'Hostet die LXC-Container fuer Mosquitto, Grafana, InfluxDB und die Solar-App (192.168.0.222).'
+    notes: 'Hostet die LXC-Container fuer Mosquitto, Grafana, InfluxDB und die Solar-Lokal-App (Standard-IP 192.168.0.220).'
   },
   {
     id: 'mosquitto-broker',
@@ -395,7 +390,7 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
     mqttTopics: [
       'venus/grid/shellypro/#',
       'venus/pv/ahoydtu/#',
-      'TRUCKI/#',
+      'T2SG/#',
       `N/${VRM_ID}/#`
     ],
     apiEndpoints: [],
@@ -471,7 +466,7 @@ export const INITIAL_NETWORK_HOSTS: NetworkHost[] = [
   { ip: '192.168.0.201', port: 8883, name: 'Mosquitto MQTT Broker', deviceCategory: 'MQTT Broker', services: ['MQTTS:8883', 'MQTT:1883'], status: 'Online', latencyMs: 0.3, mac: NE },
   { ip: '192.168.0.202', port: 3000, name: 'Grafana', deviceCategory: 'Visualisierung', services: ['HTTP:3000'], status: 'Online', latencyMs: 0.5, mac: NE },
   { ip: '192.168.0.203', port: 8086, name: 'InfluxDB 2.x', deviceCategory: 'Datenbank', services: ['HTTP:8086', 'Flux'], status: 'Online', latencyMs: 0.6, mac: NE },
-  { ip: '192.168.0.222', port: 80, name: 'Solar-App (LXC)', deviceCategory: 'Anwendung', services: ['HTTP'], status: 'Online', latencyMs: 0.5, mac: NE }
+  { ip: '192.168.0.220', port: 80, name: 'Solar-Lokal-App (LXC)', deviceCategory: 'Anwendung', services: ['HTTP'], status: 'Online', latencyMs: 0.5, mac: NE }
 ];
 
 export const INITIAL_DISCOVERED_DEVICE: DiscoveredDevice = {
@@ -558,14 +553,14 @@ export const INITIAL_MQTT_TOPICS: MqttTopicDoc[] = [
     ]
   },
   {
-    topic: 'TRUCKI/ACDISPLAY',
+    topic: 'T2SG/ACDISPLAY',
     dataType: 'Single Value [W]',
     source: 'Trucki2Shelly Gateway (192.168.0.102)',
     frequency: '~1.3 s',
     lastSeen: 'Gerade eben',
     consumers: ['Solar-Lokal Core', 'InfluxDB solar.pv_power', 'Grafana'],
     samplePayload: {
-      topic: 'TRUCKI/ACDISPLAY',
+      topic: 'T2SG/ACDISPLAY',
       value: 595,
       unit: 'W'
     },
@@ -574,14 +569,14 @@ export const INITIAL_MQTT_TOPICS: MqttTopicDoc[] = [
     ]
   },
   {
-    topic: 'TRUCKI/ACSETPOINT',
+    topic: 'T2SG/ACSETPOINT',
     dataType: 'Single Value [W]',
     source: 'Trucki2Shelly Gateway (192.168.0.102)',
     frequency: '~1.3 s',
     lastSeen: 'Gerade eben',
     consumers: ['Solar-Lokal Core', 'Regler-Audit'],
     samplePayload: {
-      topic: 'TRUCKI/ACSETPOINT',
+      topic: 'T2SG/ACSETPOINT',
       value: 600,
       unit: 'W'
     },
@@ -590,14 +585,14 @@ export const INITIAL_MQTT_TOPICS: MqttTopicDoc[] = [
     ]
   },
   {
-    topic: 'TRUCKI/VBAT',
+    topic: 'T2SG/VBAT',
     dataType: 'Single Value [V]',
     source: 'Trucki2Shelly Gateway (192.168.0.102)',
     frequency: '~1.3 s',
     lastSeen: 'Gerade eben',
     consumers: ['Solar-Lokal Core', 'Tiefentladeschutz', 'InfluxDB'],
     samplePayload: {
-      topic: 'TRUCKI/VBAT',
+      topic: 'T2SG/VBAT',
       value: 52.84,
       unit: 'V'
     },
@@ -606,14 +601,14 @@ export const INITIAL_MQTT_TOPICS: MqttTopicDoc[] = [
     ]
   },
   {
-    topic: 'TRUCKI/METER',
+    topic: 'T2SG/METER',
     dataType: 'Single Value [W]',
     source: 'Trucki2Shelly Gateway (192.168.0.102)',
     frequency: '~1.3 s',
     lastSeen: 'Gerade eben',
     consumers: ['ZEPC Regelschleife', 'Nulleinspeisungs-Monitor'],
     samplePayload: {
-      topic: 'TRUCKI/METER',
+      topic: 'T2SG/METER',
       value: 145,
       unit: 'W'
     },
@@ -622,14 +617,14 @@ export const INITIAL_MQTT_TOPICS: MqttTopicDoc[] = [
     ]
   },
   {
-    topic: 'TRUCKI/ZEPC',
+    topic: 'T2SG/ZEPC',
     dataType: 'Numeric State [0-4]',
     source: 'Trucki2Shelly Gateway (192.168.0.102)',
     frequency: '~1.3 s',
     lastSeen: 'Gerade eben',
     consumers: ['Solar-Lokal Core', 'Status-HUD'],
     samplePayload: {
-      topic: 'TRUCKI/ZEPC',
+      topic: 'T2SG/ZEPC',
       value: 1,
       mode: 'Enabled'
     },
@@ -638,14 +633,14 @@ export const INITIAL_MQTT_TOPICS: MqttTopicDoc[] = [
     ]
   },
   {
-    topic: 'TRUCKI/TEMPERATURE',
+    topic: 'T2SG/TEMPERATURE',
     dataType: 'Single Value [°C]',
     source: 'Trucki2Shelly Gateway (192.168.0.102)',
     frequency: '~1.3 s',
     lastSeen: 'Gerade eben',
     consumers: ['Temperatur-Wächter', 'Alarm-System'],
     samplePayload: {
-      topic: 'TRUCKI/TEMPERATURE',
+      topic: 'T2SG/TEMPERATURE',
       value: 39.2,
       unit: '°C'
     },
@@ -654,14 +649,14 @@ export const INITIAL_MQTT_TOPICS: MqttTopicDoc[] = [
     ]
   },
   {
-    topic: 'TRUCKI/ACSETPOINTOVR',
+    topic: 'T2SG/ACSETPOINTOVR',
     dataType: 'Command [W] (Write-Only)',
     source: 'Solar-Lokal / MQTT Client -> T2SG',
     frequency: 'Auf Befehl',
     lastSeen: 'Vor 15 Min',
     consumers: ['Trucki2Shelly Gateway'],
     samplePayload: {
-      topic: 'TRUCKI/ACSETPOINTOVR',
+      topic: 'T2SG/ACSETPOINTOVR',
       payload: '350'
     },
     fields: [
@@ -669,14 +664,14 @@ export const INITIAL_MQTT_TOPICS: MqttTopicDoc[] = [
     ]
   },
   {
-    topic: 'TRUCKI/METEROVR',
+    topic: 'T2SG/METEROVR',
     dataType: 'Command [W] (Write-Only)',
     source: 'Solar-Lokal / MQTT Client -> T2SG',
     frequency: 'Zyklisch ~500ms',
     lastSeen: 'Vor 2s',
     consumers: ['Trucki2Shelly Gateway ZEPC'],
     samplePayload: {
-      topic: 'TRUCKI/METEROVR',
+      topic: 'T2SG/METEROVR',
       payload: '185'
     },
     fields: [
@@ -684,14 +679,14 @@ export const INITIAL_MQTT_TOPICS: MqttTopicDoc[] = [
     ]
   },
   {
-    topic: 'TRUCKI/ZEPCOVR',
+    topic: 'T2SG/ZEPCOVR',
     dataType: 'Command [0|1] (Write-Only)',
     source: 'Solar-Lokal / MQTT Client -> T2SG',
     frequency: 'Auf Befehl',
     lastSeen: 'Vor 1 Std',
     consumers: ['Trucki2Shelly Gateway'],
     samplePayload: {
-      topic: 'TRUCKI/ZEPCOVR',
+      topic: 'T2SG/ZEPCOVR',
       payload: '1'
     },
     fields: [
@@ -699,14 +694,14 @@ export const INITIAL_MQTT_TOPICS: MqttTopicDoc[] = [
     ]
   },
   {
-    topic: 'TRUCKI/REBOOTOVR',
+    topic: 'T2SG/REBOOTOVR',
     dataType: 'Command String (Write-Only)',
     source: 'Solar-Lokal / Wartung -> T2SG',
     frequency: 'Manuell',
     lastSeen: 'Nie',
     consumers: ['Trucki2Shelly Gateway OS'],
     samplePayload: {
-      topic: 'TRUCKI/REBOOTOVR',
+      topic: 'T2SG/REBOOTOVR',
       payload: 'REBOOTOVR'
     },
     fields: [
@@ -745,7 +740,7 @@ export const INITIAL_API_DOCS: ApiDoc[] = [
       title: 'Trucki2Shelly Gateway v1.15',
       uptime: '14d 06:22:15',
       zepc: 'Enabled (1)',
-      inverter: 'SUN-2000G2-H RS485 Connected'
+      inverter: 'SUN-G2 RS485 Connected'
     }
   },
   {

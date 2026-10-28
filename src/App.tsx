@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Layers, 
   Radio, 
@@ -330,25 +330,11 @@ export default function App() {
   };
 
   // Handle Limit Update (Trucki or Hoymiles)
-  // Slider-Werte gebuendelt ans Backend senden (T2SG MAXPOWEROVR), nicht bei jedem Schritt
-  const limitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const sendTruckiLimit = (value: number) => {
-    if (limitTimer.current) clearTimeout(limitTimer.current);
-    limitTimer.current = setTimeout(() => {
-      fetch('/api/control/limit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limitWatts: value }),
-      }).catch(() => { /* Backend nicht erreichbar: nur lokale Anzeige */ });
-    }, 600);
-  };
-
   const handleUpdateLimit = (type: 'trucki' | 'hoymiles', value: number) => {
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
     if (type === 'trucki') {
       const oldVal = `${telemetry.truckiPowerLimitWatts} W`;
-      sendTruckiLimit(value);
       setTelemetry(prev => ({
         ...prev,
         truckiPowerLimitWatts: value
@@ -358,7 +344,7 @@ export default function App() {
       const chg: ChangeLogEntry = {
         id: `chg-${Date.now()}`,
         timestamp: nowStr,
-        device: 'Trucki / SUN-2000G2-H',
+        device: 'Trucki / Sun 2000',
         parameter: 'POWERLIMIT',
         oldValue: oldVal,
         newValue: `${value} W`,
