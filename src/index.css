@@ -123,3 +123,31 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #334155;
 }
+
+/* Skeleton & Sync Shimmer Animations */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes laserScan {
+  0% {
+    left: -20%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+.animate-laser-scan {
+  animation: laserScan 1.1s ease-in-out infinite;
+}
+

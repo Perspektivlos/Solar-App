@@ -60,57 +60,94 @@ export default function App() {
   const [pwaModalOpen, setPwaModalOpen] = useState<boolean>(false);
   const [deviceSettingsOpen, setDeviceSettingsOpen] = useState<boolean>(false);
   const [lastTickTime, setLastTickTime] = useState<string>('14:32:45');
+  const [backendInfo, setBackendInfo] = useState<{
+    isOnline: boolean;
+    isLiveLAN: boolean;
+    sources?: { shelly: string; ahoy: string; trucki: string; venus: string };
+  }>({ isOnline: true, isLiveLAN: false });
 
   // Dynamic polling interval:
   // - In foreground: 2000ms for fluid, responsive real-time updates
   // - In background (tab hidden / smartphone locked): 8000ms throttled to conserve battery and CPU
   const pollIntervalMs = deviceInfo.isBackground ? 8000 : 2000;
 
-  // Live telemetry subtle ticker
+  // Live telemetry ticker connected to Express Backend (/api/telemetry/live)
   useEffect(() => {
     if (!isSimulating) return;
 
-    const interval = setInterval(() => {
+    let isMounted = true;
+
+    const tick = async () => {
       const now = new Date();
       const timeStr = now.toLocaleTimeString('de-DE', { hour12: false });
-      setLastTickTime(timeStr);
+      if (isMounted) setLastTickTime(timeStr);
 
-      setTelemetry(prev => {
-        // Minor realistic drift (±10 W for solar, trucki compensating)
-        const pvDrift = Math.floor(Math.random() * 21) - 10;
-        const newPvHoymiles = Math.max(800, Math.min(1450, prev.pvHoymilesWatts + pvDrift));
-        const newTotalPv = newPvHoymiles + prev.pvVictronMppt1Watts + prev.pvVictronMppt2Watts;
-        
-        // House load slight drift
-        const houseDrift = Math.floor(Math.random() * 15) - 7;
-        const newHouseTotal = Math.max(700, prev.houseTotalWatts + houseDrift);
+      // 1. Versuche das lokale Express-Backend abzufragen
+      try {
+        const response = await fetch('/api/telemetry/live', {
+          signal: AbortSignal.timeout(1800),
+        });
+        if (response.ok) {
+          const json = await response.json();
+          if (json?.data && isMounted) {
+            setTelemetry(prev => ({
+              ...prev,
+              ...json.data
+            }));
+            setBackendInfo({
+              isOnline: true,
+              isLiveLAN: Boolean(json.data.isLive),
+              sources: json.data.sources
+            });
+            return;
+          }
+        }
+      } catch {
+        // Backend kurzzeitig nicht erreichbar -> Fallback
+      }
 
-        // Trucki zero-export regulation (Sun-2000 AC injection)
-        const neededFromBat = Math.max(0, newHouseTotal - newPvHoymiles);
-        const limitedBatWatts = prev.truckiZeroExportEnabled 
-          ? Math.min(prev.truckiPowerLimitWatts, Math.round(neededFromBat))
-          : 0;
-        const newGridWatts = Math.round(newHouseTotal - newPvHoymiles - limitedBatWatts);
+      // 2. Nahtloser Simulations-Fallback
+      if (isMounted) {
+        setBackendInfo(prev => ({ ...prev, isOnline: false, isLiveLAN: false }));
+        setTelemetry(prev => {
+          const pvDrift = Math.floor(Math.random() * 21) - 10;
+          const newPvHoymiles = Math.max(800, Math.min(1450, prev.pvHoymilesWatts + pvDrift));
+          const newTotalPv = newPvHoymiles + prev.pvVictronMppt1Watts + prev.pvVictronMppt2Watts;
+          
+          const houseDrift = Math.floor(Math.random() * 15) - 7;
+          const newHouseTotal = Math.max(700, prev.houseTotalWatts + houseDrift);
 
-        // DC Battery balance (Victron MPPT charge vs Lumentree DC draw)
-        const lumentreeDcDraw = limitedBatWatts > 0 ? Math.round(limitedBatWatts / 0.92) : 0;
-        const mpptDcCharge = prev.pvVictronMppt1Watts + prev.pvVictronMppt2Watts;
-        const netBatteryWatts = mpptDcCharge - lumentreeDcDraw;
+          const neededFromBat = Math.max(0, newHouseTotal - newPvHoymiles);
+          const limitedBatWatts = prev.truckiZeroExportEnabled 
+            ? Math.min(prev.truckiPowerLimitWatts, Math.round(neededFromBat))
+            : 0;
+          const newGridWatts = Math.round(newHouseTotal - newPvHoymiles - limitedBatWatts);
 
-        return {
-          ...prev,
-          pvHoymilesWatts: newPvHoymiles,
-          pvTotalWatts: newTotalPv,
-          houseTotalWatts: newHouseTotal,
-          truckiActualOutputWatts: limitedBatWatts,
-          batteryWatts: netBatteryWatts,
-          gridTotalWatts: newGridWatts,
-          gridMode: newGridWatts >= 0 ? 'Bezug' : 'Einspeisung'
-        };
-      });
-    }, pollIntervalMs);
+          const lumentreeDcDraw = limitedBatWatts > 0 ? Math.round(limitedBatWatts / 0.92) : 0;
+          const mpptDcCharge = prev.pvVictronMppt1Watts + prev.pvVictronMppt2Watts;
+          const netBatteryWatts = mpptDcCharge - lumentreeDcDraw;
 
-    return () => clearInterval(interval);
+          return {
+            ...prev,
+            pvHoymilesWatts: newPvHoymiles,
+            pvTotalWatts: newTotalPv,
+            houseTotalWatts: newHouseTotal,
+            truckiActualOutputWatts: limitedBatWatts,
+            batteryWatts: netBatteryWatts,
+            gridTotalWatts: newGridWatts,
+            gridMode: newGridWatts >= 0 ? 'Bezug' : 'Einspeisung'
+          };
+        });
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, pollIntervalMs);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [isSimulating, pollIntervalMs]);
 
   // Keyboard navigation for Desktop PC (keys 1-8, Space, ?, D)
@@ -305,6 +342,7 @@ export default function App() {
         lastTickTime={lastTickTime}
         deviceInfo={deviceInfo}
         onOpenDeviceSettings={() => setDeviceSettingsOpen(true)}
+        backendInfo={backendInfo}
       />
 
       {/* Ambient Wall-Mount Kiosk Alert Banner if WakeLock is active */}

@@ -31,6 +31,7 @@ interface NavbarProps {
   lastTickTime: string;
   deviceInfo: DeviceInfo;
   onOpenDeviceSettings: () => void;
+  backendInfo?: { isOnline: boolean; isLiveLAN: boolean };
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -42,7 +43,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenPWAInfo,
   lastTickTime,
   deviceInfo,
-  onOpenDeviceSettings
+  onOpenDeviceSettings,
+  backendInfo
 }) => {
   const tabs = [
     { id: 'dashboard', label: 'Steuerzentrale', icon: Zap, keyNumber: '1' },
@@ -124,6 +126,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               </>
             )}
           </button>
+
+          {/* Backend Status Indicator (Live LAN vs Server Simulation) */}
+          <div 
+            className={`hidden sm:flex items-center gap-1.5 px-2 py-1 rounded text-xs font-mono-code border transition-all ${
+              backendInfo?.isLiveLAN 
+                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' 
+                : 'border-white/[0.08] bg-slate-900/60 text-slate-300'
+            }`}
+            title={backendInfo?.isLiveLAN ? "Echte LAN-Telemetrie aktiv (Shelly, AhoyDTU, Trucki)" : "Lokales Backend aktiv (LAN-Hardware im lokalen Subnetz oder Simulation)"}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${backendInfo?.isLiveLAN ? 'bg-emerald-400 animate-pulse' : 'bg-sky-400'}`} />
+            <span className="text-[11px]">{backendInfo?.isLiveLAN ? 'LAN Live' : 'Backend REST'}</span>
+          </div>
 
           {/* Diagnose / Herkunft Inspector Trigger */}
           <button
