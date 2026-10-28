@@ -1,23 +1,29 @@
 #!/usr/bin/env python3
 """
 =============================================================================
-Solar-Lokal App Installer - Debian 12 / Ubuntu LXC Container
+Solar-Lokal App Installer - Debian 12 / Ubuntu LXC Container (Schnellmodus)
 =============================================================================
 Installiert und konfiguriert das Solar-Lokal Dashboard vollautomatisch
 innerhalb einer Debian 12 / Ubuntu LXC-Instanz auf Proxmox VE.
 
+Schnellmodus-Optimierung:
+  - Verwendet ausschließlich Standard-Debian-Systempakete:
+    curl, git, nginx, build-essential, nodejs, npm
+  - Läuft ohne vorangehendes zeitintensives 'apt-get update' (direkte Paketinstallation)
+  - Keine externen Repositories (kein NodeSource, keine PGP-Keys)
+
 Schritte:
-  1. System-Updates & Abhängigkeiten (curl, git, ca-certificates, nginx)
-  2. Installation von modernem Node.js LTS (v22 / v20) via NodeSource
-  3. Einrichtung des App-Verzeichnisses unter /opt/solar-lokal
-  4. Installation der Node.js Dependencies & Production Build (Vite)
-  5. Konfiguration des Nginx Webservers für minimale Latenz & SPA-Routing
-  6. Optionaler Systemd Service für Node.js Live-Betrieb
-  7. Start & Health-Check
+  0. Netzwerk & DNS Health-Check
+  1. Direkte Paketinstallation (curl, git, nginx, build-essential, nodejs, npm)
+  2. Einrichtung des App-Verzeichnisses unter /opt/solar-lokal
+  3. Installation der Node.js Dependencies & Production Build (Vite)
+  4. Konfiguration des Nginx Webservers für minimale Latenz & SPA-Routing
+  5. Systemd Service für Node.js Live-Betrieb & Autostart
 
 Verwendung im Container:
     python3 install_solar_app.py
-    python3 install_solar_app.py --port 80 --mode nginx
+    python3 install_solar_app.py --port 80
+    python3 install_solar_app.py --update   # falls apt-get update gewünscht
 =============================================================================
 """
 
@@ -44,8 +50,9 @@ SERVICE_NAME = "solar-lokal"
 def print_banner():
     print(f"{C_CYAN}{C_BOLD}")
     print("┌─────────────────────────────────────────────────────────────┐")
-    print("│            SOLAR-LOKAL // CONTAINER APP INSTALLER          │")
-    print("│       Nginx Production Build • Systemd Service • Node LTS   │")
+    print("│         SOLAR-LOKAL // SCHNELLER APP INSTALLER             │")
+    print("│     Standard-Pakete (curl, git, nginx, build-ess., node)    │")
+    print("│           Sofortige Betriebsbereitschaft ohne Update        │")
     print("└─────────────────────────────────────────────────────────────┘")
     print(f"{C_RESET}")
 
@@ -94,15 +101,65 @@ def get_local_ip():
         return "127.0.0.1"
 
 
+def ensure_default_route():
+    """Prüft und setzt bei Bedarf das Standard-Gateway im LXC Container."""
+    route_check = run_cmd("ip route show default", capture_output=True, check=False)
+    default_gw = route_check.stdout.strip() if route_check.returncode == 0 else ""
+    if not default_gw:
+        print(f"{C_YELLOW}[*] Kein Standard-Gateway gefunden. Versuche automatisches Hinzufügen (via 192.168.0.1)...{C_RESET}")
+        run_cmd("ip route add default via 192.168.0.1 dev eth0", check=False)
+        time.sleep(1)
+
+
+def ensure_github_hosts_fallback():
+    """
+    Trägt GitHub Anycast IPs direkt in /etc/hosts ein, falls DNS im Container blockiert ist.
+    Verhindert zuverlässig 'Could not resolve host: github.com'.
+    """
+    hosts_path = "/etc/hosts"
+    github_entries = [
+        "140.82.121.4 github.com",
+        "140.82.121.3 github.com",
+        "140.82.121.9 codeload.github.com",
+        "140.82.121.10 codeload.github.com",
+        "185.199.108.133 raw.githubusercontent.com",
+        "185.199.109.133 raw.githubusercontent.com",
+        "185.199.110.133 raw.githubusercontent.com",
+        "185.199.111.133 raw.githubusercontent.com"
+    ]
+    try:
+        current_content = ""
+        if os.path.exists(hosts_path):
+            with open(hosts_path, "r", encoding="utf-8") as f:
+                current_content = f.read()
+
+        if "github.com" not in current_content:
+            print(f"{C_YELLOW}[*] Trage GitHub Anycast-IPs in /etc/hosts ein (Schutz vor DNS-Timeouts)...{C_RESET}")
+            with open(hosts_path, "a", encoding="utf-8") as f:
+                f.write("\n# Solar-Lokal GitHub Fallback IPs\n")
+                for entry in github_entries:
+                    f.write(f"{entry}\n")
+            print(f"{C_GREEN}[✓] GitHub Fallback-Einträge in /etc/hosts hinterlegt.{C_RESET}")
+    except Exception as e:
+        print(f"{C_YELLOW}[!] Hinweis: /etc/hosts konnte nicht modifiziert werden ({e}){C_RESET}")
+
+
 def check_and_heal_dns():
     """
     Prüft die DNS-Auflösung und Internet-Konnektivität im LXC-Container.
-    Falls deb.nodesource.com oder github.com nicht aufgelöst werden können,
-    wird /etc/resolv.conf automatisch mit Fallback-Nameservern repariert.
+    Falls github.com oder Paketquellen nicht aufgelöst werden können,
+    wird /etc/resolv.conf automatisch mit Fallback-Nameservern repariert
+    und GitHub direkt in /etc/hosts verankert.
     """
-    print(f"\n{C_CYAN}[0/6] Prüfe Netzwerk- und DNS-Konnektivität...{C_RESET}")
+    print(f"\n{C_CYAN}[0/5] Prüfe Netzwerk- und DNS-Konnektivität...{C_RESET}")
     
-    test_domains = ["deb.nodesource.com", "github.com", "deb.debian.org"]
+    # 1. Gateway sicherstellen
+    ensure_default_route()
+
+    # 2. GitHub Anycast Fallback immer eintragen
+    ensure_github_hosts_fallback()
+
+    test_domains = ["github.com", "deb.debian.org"]
     dns_ok = False
     
     for domain in test_domains:
@@ -114,10 +171,10 @@ def check_and_heal_dns():
             pass
 
     if dns_ok:
-        print(f"{C_GREEN}[✓] DNS-Auflösung funktional.{C_RESET}")
+        print(f"{C_GREEN}[✓] DNS- und Host-Auflösung funktional.{C_RESET}")
         return True
 
-    print(f"{C_YELLOW}[!] DNS-Auflösung fehlgeschlagen (deb.nodesource.com / github.com nicht erreichbar).{C_RESET}")
+    print(f"{C_YELLOW}[!] DNS-Auflösung via Nameserver eingeschränkt.{C_RESET}")
     print(f"{C_YELLOW}[*] Automatische Reparatur: Schreibe funktionale Nameserver in /etc/resolv.conf...{C_RESET}")
 
     fallback_dns = (
@@ -125,6 +182,8 @@ def check_and_heal_dns():
         "nameserver 192.168.0.1\n"
         "nameserver 1.1.1.1\n"
         "nameserver 8.8.8.8\n"
+        "nameserver 9.9.9.9\n"
+        "options timeout:2 attempts:2\n"
     )
 
     try:
@@ -141,97 +200,50 @@ def check_and_heal_dns():
     for domain in test_domains:
         try:
             socket.gethostbyname(domain)
-            print(f"{C_GREEN}[✓] DNS-Auflösung nach Reparatur erfolgreich ({domain}).{C_RESET}")
+            print(f"{C_GREEN}[✓] Host-Auflösung nach Reparatur erfolgreich ({domain}).{C_RESET}")
             return True
         except Exception:
             pass
 
-    # Prüfe ob Default-Gateway vorhanden ist
-    route_check = run_cmd("ip route show default", capture_output=True, check=False)
-    default_gw = route_check.stdout.strip() if route_check.returncode == 0 else ""
-    if not default_gw:
-        print(f"{C_RED}[FEHLER] Kein Standard-Gateway im LXC Container konfiguriert!{C_RESET}")
-        print(f"{C_YELLOW}Hinweis: Führen Sie auf dem Proxmox Host aus:{C_RESET}")
-        print(f"  pct set <CTID> -nameserver '192.168.0.1 8.8.8.8'")
-        print(f"Oder im Container:{C_RESET}")
-        print(f"  ip route add default via 192.168.0.1 dev eth0")
-    else:
-        print(f"{C_YELLOW}[!] Gateway vorhanden ({default_gw}), aber externe Hostnamen noch unauflösbar.{C_RESET}")
-
     return False
 
 
-def step_update_system():
-    print(f"\n{C_CYAN}[1/6] Aktualisiere Paketquellen & installiere Basis-Pakete...{C_RESET}")
-    run_cmd("apt-get update -y", check=False)
+def step_install_fast_packages(update=False):
+    """
+    Installiert ausschließlich die geforderten Standard-Systempakete:
+    curl, git, nginx, build-essential, nodejs, npm.
+    Verzichtet standardmäßig vollständig auf apt-get update für maximale Geschwindigkeit.
+    """
+    print(f"\n{C_CYAN}[1/5] Installiere Standard-Systempakete (Schnellmodus)...{C_RESET}")
+    if update:
+        print(f"{C_YELLOW}[*] Führe angefordertes 'apt-get update' aus...{C_RESET}")
+        run_cmd("apt-get update -y", check=False)
+    else:
+        print(f"{C_GREEN}[⚡] Blitz-Modus aktiv: Überspringe 'apt-get update' für sofortige Betriebsbereitschaft.{C_RESET}")
+
     packages = [
         "curl",
         "git",
-        "ca-certificates",
-        "gnupg",
-        "lsb-release",
         "nginx",
         "build-essential",
-        "rsync",
-        "ufw"
+        "nodejs",
+        "npm"
     ]
-    run_cmd(f"apt-get install -y {' '.join(packages)}")
-    print(f"{C_GREEN}[✓] Basis-Pakete installiert.{C_RESET}")
+    pkg_str = " ".join(packages)
+    print(f"{C_YELLOW}[>] apt-get install -y --no-install-recommends {pkg_str}{C_RESET}")
+    run_cmd(f"apt-get install -y --no-install-recommends {pkg_str}")
+    print(f"{C_GREEN}[✓] Standard-Pakete ({pkg_str}) erfolgreich installiert.{C_RESET}")
 
-
-def step_install_nodejs():
-    print(f"\n{C_CYAN}[2/6] Prüfe / Installiere Node.js LTS (v22 / v20)...{C_RESET}")
-    needs_install = True
-    if shutil.which("node") and shutil.which("npm"):
-        res = run_cmd("node -v", capture_output=True, check=False)
-        if res.returncode == 0:
-            version_str = res.stdout.strip()
-            print(f"{C_GREEN}[✓] Node.js bereits vorhanden: {version_str}{C_RESET}")
-            try:
-                major = int(version_str.lstrip("v").split(".")[0])
-                if major >= 18:
-                    needs_install = False
-            except ValueError:
-                pass
-
-    if needs_install:
-        nodesource_success = False
-        print(f"{C_YELLOW}[*] Versuche offizielles NodeSource Repository für Node 22 einzurichten...{C_RESET}")
-        run_cmd("mkdir -p /etc/apt/keyrings")
-        
-        # Sicherer curl Download mit Verbindungstimeout (kein unkontrollierter Abbruch)
-        curl_key_res = run_cmd("curl -fsSL --connect-timeout 6 https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg --yes", check=False)
-        if curl_key_res.returncode == 0:
-            run_cmd('echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" > /etc/apt/sources.list.d/nodesource.list')
-            update_res = run_cmd("apt-get update -y", check=False)
-            if update_res.returncode == 0:
-                install_res = run_cmd("apt-get install -y nodejs", check=False)
-                if install_res.returncode == 0:
-                    nodesource_success = True
-                    print(f"{C_GREEN}[✓] Node.js 22 via NodeSource erfolgreich installiert.{C_RESET}")
-
-        if not nodesource_success:
-            print(f"{C_YELLOW}[!] NodeSource Repository war nicht erreichbar oder schlug fehl.{C_RESET}")
-            print(f"{C_YELLOW}[*] Fallback: Installiere Node.js & npm aus offiziellem Debian/Ubuntu Repository...{C_RESET}")
-            # Bereinige etwaige unvollständige NodeSource sources-list
-            if os.path.exists("/etc/apt/sources.list.d/nodesource.list"):
-                try:
-                    os.remove("/etc/apt/sources.list.d/nodesource.list")
-                except Exception:
-                    pass
-            run_cmd("apt-get update -y", check=False)
-            run_cmd("apt-get install -y nodejs npm", check=True)
-            print(f"{C_GREEN}[✓] Node.js & npm aus Standard-Paketquellen erfolgreich installiert.{C_RESET}")
-
+    # Node & npm Versionen prüfen
     res_node = run_cmd("node -v", capture_output=True, check=False)
     res_npm = run_cmd("npm -v", capture_output=True, check=False)
     node_str = res_node.stdout.strip() if res_node.returncode == 0 else "unbekannt"
     npm_str = res_npm.stdout.strip() if res_npm.returncode == 0 else "unbekannt"
-    print(f"{C_GREEN}[✓] Node: {node_str} | NPM: {npm_str}{C_RESET}")
+    print(f"{C_GREEN}[✓] Node.js Runtime: {node_str} | NPM: {npm_str}{C_RESET}")
 
 
 def step_setup_app_source(repo_url=None):
-    print(f"\n{C_CYAN}[3/6] Richte Solar-Lokal App-Verzeichnis unter {APP_DIR} ein...{C_RESET}")
+    print(f"\n{C_CYAN}[2/5] Richte Solar-Lokal App-Verzeichnis unter {APP_DIR} ein...{C_RESET}")
     os.makedirs(APP_DIR, exist_ok=True)
 
     # Prüfen, ob das Skript innerhalb des Projektverzeichnisses aufgerufen wird
@@ -246,10 +258,29 @@ def step_setup_app_source(repo_url=None):
         run_cmd(f"rsync -av --exclude 'node_modules' --exclude '.git' --exclude 'dist' {current_script_dir}/ {APP_DIR}/")
     elif repo_url:
         print(f"{C_YELLOW}[*] Klone Repository von {repo_url}...{C_RESET}")
+        ensure_default_route()
+        ensure_github_hosts_fallback()
+
         if os.path.exists(os.path.join(APP_DIR, ".git")):
             run_cmd(f"cd {APP_DIR} && git pull")
         else:
-            run_cmd(f"git clone {repo_url} {APP_DIR}")
+            # Bis zu 3 Versuche mit Reparatur bei Netzwerk-Schwankungen
+            cloned = False
+            for attempt in range(1, 4):
+                try:
+                    run_cmd(f"git clone {repo_url} {APP_DIR}")
+                    cloned = True
+                    break
+                except Exception as e:
+                    if attempt < 3:
+                        print(f"{C_YELLOW}[!] Clone-Versuch {attempt} fehlgeschlagen. Repariere DNS & Gateway, wiederhole in 2s...{C_RESET}")
+                        check_and_heal_dns()
+                        ensure_github_hosts_fallback()
+                        time.sleep(2)
+                    else:
+                        raise e
+            if cloned:
+                print(f"{C_GREEN}[✓] Repository erfolgreich geklont.{C_RESET}")
     else:
         # Falls keine Dateien da sind, erstellen wir eine Basiskonfiguration oder erwarten manuelle Kopie
         print(f"{C_YELLOW}[!] Kein Git-Repo angegeben und keine Quellcodedateien im aktuellen Pfad gefunden.{C_RESET}")
@@ -257,7 +288,7 @@ def step_setup_app_source(repo_url=None):
 
 
 def step_build_app():
-    print(f"\n{C_CYAN}[4/6] Installiere Node-Dependencies & erstelle Production Build...{C_RESET}")
+    print(f"\n{C_CYAN}[3/5] Installiere Node-Dependencies & erstelle Production Build...{C_RESET}")
     if not os.path.exists(os.path.join(APP_DIR, "package.json")):
         print(f"{C_RED}[!] Kein package.json in {APP_DIR} gefunden! Bitte stellen Sie sicher, dass die App-Dateien vorhanden sind.{C_RESET}")
         return False
@@ -278,7 +309,7 @@ def step_build_app():
 
 
 def step_configure_nginx(web_port=80):
-    print(f"\n{C_CYAN}[5/6] Konfiguriere Nginx Webserver für Solar-Lokal (Port {web_port})...{C_RESET}")
+    print(f"\n{C_CYAN}[4/5] Konfiguriere Nginx Webserver für Solar-Lokal (Port {web_port})...{C_RESET}")
 
     nginx_conf = f"""# Solar-Lokal Proxmox Web-Dashboard
 server {{
@@ -348,8 +379,8 @@ server {{
 
 
 def step_create_systemd_service():
-    """Erstellt optional einen Systemd-Dienst zur Ausführung des Vite Dev/Preview Servers."""
-    print(f"\n{C_CYAN}[6/6] Richte Systemd-Dienst 'solar-lokal.service' ein...{C_RESET}")
+    """Erstellt den Systemd-Dienst zur Ausführung des Vite Servers."""
+    print(f"\n{C_CYAN}[5/5] Richte Systemd-Dienst 'solar-lokal.service' ein...{C_RESET}")
 
     service_content = f"""[Unit]
 Description=Solar-Lokal Web Dashboard Service
@@ -383,10 +414,11 @@ def main():
     print_banner()
     check_root()
 
-    parser = argparse.ArgumentParser(description="Solar-Lokal App Installer für Proxmox LXC")
+    parser = argparse.ArgumentParser(description="Solar-Lokal App Installer für Proxmox LXC (Schnellmodus)")
     parser.add_argument("--port", type=int, default=80, help="Webserver Port (Standard: 80)")
     parser.add_argument("--repo", type=str, default="https://github.com/Perspektivlos/Solar-App.git", help="Git Repository URL zum Klonen (Standard: Perspektivlos/Solar-App.git)")
     parser.add_argument("--skip-build", action="store_true", help="Überspringt den 'npm run build' Schritt")
+    parser.add_argument("--update", action="store_true", help="Führt vorab apt-get update aus (Standard: deaktiviert für Schnellinstallation)")
     args = parser.parse_args()
 
     local_ip = get_local_ip()
@@ -394,23 +426,20 @@ def main():
     # 0. Netzwerk & DNS prüfen / reparieren
     check_and_heal_dns()
 
-    # 1. System aktualisieren
-    step_update_system()
+    # 1. Standard-Pakete installieren (ohne apt-get update)
+    step_install_fast_packages(update=args.update)
 
-    # 2. Node.js installieren
-    step_install_nodejs()
-
-    # 3. Quellcode kopieren / vorbereiten
+    # 2. Quellcode kopieren / vorbereiten
     step_setup_app_source(repo_url=args.repo)
 
-    # 4. App bauen
+    # 3. App bauen
     if not args.skip_build:
         step_build_app()
 
-    # 5. Nginx einrichten
+    # 4. Nginx einrichten
     step_configure_nginx(web_port=args.port)
 
-    # 6. Systemd Service einrichten (für Port 3000 Preview/Backend)
+    # 5. Systemd Service einrichten (für Port 3000 Preview/Backend)
     step_create_systemd_service()
 
     # Abschlussbericht

@@ -167,14 +167,15 @@ def install_application():
     print(f" Installiere Solar-Lokal-App in Container {CT_ID}")
     print("==================================================")
     
-    # 0. DNS-Nameserver sicherstellen falls /etc/resolv.conf leer ist
-    print("[*] 0/4 Prüfe DNS-Konfiguration im Container...")
-    exec_in_container('grep -q "nameserver" /etc/resolv.conf || echo -e "nameserver 192.168.0.1\\nnameserver 8.8.8.8" > /etc/resolv.conf')
+    # 0. DNS-Nameserver, Gateway & GitHub Fallback sicherstellen
+    print("[*] 0/4 Prüfe DNS, Gateway & GitHub-Auflösung im Container...")
+    exec_in_container('grep -q "nameserver" /etc/resolv.conf || echo -e "nameserver 192.168.0.1\\nnameserver 1.1.1.1\\nnameserver 8.8.8.8" > /etc/resolv.conf')
+    exec_in_container('ip route show default | grep -q default || ip route add default via 192.168.0.1 dev eth0 2>/dev/null || true')
+    exec_in_container('grep -q "github.com" /etc/hosts || echo -e "140.82.121.4 github.com\\n140.82.121.3 github.com" >> /etc/hosts')
 
-    # 1. Basis-Pakete & NodeSource Node.js LTS (mit Debian-Fallback)
-    print("[*] 1/4 Installiere Systempakete & Node.js...")
-    exec_in_container("apt-get update && apt-get install -y curl git mosquitto-clients build-essential")
-    exec_in_container("(curl -fsSL --connect-timeout 6 https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs) || apt-get install -y nodejs npm")
+    # 1. Schnelle Installation der Standard-Pakete ohne zeitintensives apt-get update
+    print("[*] 1/4 Installiere Standard-Pakete (curl, git, nginx, build-essential, nodejs, npm)...")
+    exec_in_container("apt-get install -y --no-install-recommends curl git nginx build-essential nodejs npm")
     
     # 2. Repository klonen und bauen
     print("[*] 2/4 Klone Solar-Lokal-App und installiere npm dependencies...")
@@ -245,13 +246,14 @@ pct create $CTID /var/lib/vz/template/cache/debian-12-standard_12.2-1_amd64.tar.
 
 pct set $CTID -nameserver "$NAMESERVER"
 
-echo "=== Starte Container und installiere Node.js & Git ==="
+echo "=== Starte Container und installiere Standard-Pakete (Schnellmodus ohne apt-get update) ==="
 pct start $CTID
 sleep 4
 
-pct exec $CTID -- bash -c "grep -q 'nameserver' /etc/resolv.conf || echo -e 'nameserver 192.168.0.1\\nnameserver 8.8.8.8' > /etc/resolv.conf"
-pct exec $CTID -- bash -c "apt-get update && apt-get install -y curl git mosquitto-clients"
-pct exec $CTID -- bash -c "(curl -fsSL --connect-timeout 6 https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs) || apt-get install -y nodejs npm"
+pct exec $CTID -- bash -c "grep -q 'nameserver' /etc/resolv.conf || echo -e 'nameserver 192.168.0.1\\nnameserver 1.1.1.1\\nnameserver 8.8.8.8' > /etc/resolv.conf"
+pct exec $CTID -- bash -c "ip route show default | grep -q default || ip route add default via 192.168.0.1 dev eth0 2>/dev/null || true"
+pct exec $CTID -- bash -c "grep -q 'github.com' /etc/hosts || echo -e '140.82.121.4 github.com\\n140.82.121.3 github.com' >> /etc/hosts"
+pct exec $CTID -- bash -c "apt-get install -y --no-install-recommends curl git nginx build-essential nodejs npm"
 
 echo "=== Clone Solar-App Repository ==="
 pct exec $CTID -- bash -c "git clone https://github.com/Perspektivlos/Solar-App.git /opt/solar-lokal"
@@ -718,7 +720,7 @@ ${maintenanceLog.slice(0, 5).map(m => `- **${m.date}** [${m.device}] ${m.task} �
                     Skript 2: App Installation & Systemd Service (Python)
                   </div>
                   <div className="text-xs text-slate-400">
-                    Installiert Node.js 20, klont das Repository nach /opt/solar-lokal, kompiliert die App und startet den Service
+                    Blitz-Installation mit Debian-Standardpaketen (curl, git, nginx, build-essential, nodejs, npm) ohne apt-get update für sofortige Einsatzbereitschaft
                   </div>
                 </div>
                 <button
