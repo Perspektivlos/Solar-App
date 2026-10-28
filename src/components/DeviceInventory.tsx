@@ -20,7 +20,8 @@ import {
   Sun,
   ChevronDown,
   ChevronUp,
-  RefreshCw
+  RefreshCw,
+  Radio
 } from 'lucide-react';
 import { DeviceInventoryItem, FirmwareStatus, SolarTelemetry } from '../types';
 import { ParameterAuditView } from './ParameterAuditView';

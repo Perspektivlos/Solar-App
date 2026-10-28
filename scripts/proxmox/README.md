@@ -101,3 +101,19 @@ cd /opt/solar-lokal
 npm run build
 systemctl restart nginx
 ```
+
+## Update einer bestehenden Installation
+
+Im Container (als root):
+
+```bash
+bash /opt/solar-lokal/scripts/proxmox/update_solar_app.sh
+```
+
+Das Skript sichert `.env`, `hardware-config.json` und `mqtt-config.json` nach `/root/solar-lokal-backup-*`,
+zieht `main` per Fast-Forward, baut neu und korrigiert alte Installationen:
+
+- systemd startet das Backend (`npm start`) statt `vite preview`
+- Nginx leitet `/api/` ohne Pfadkuerzung an `127.0.0.1:3000` weiter
+
+Zum Schluss prueft es Backend, Nginx, MQTT-Verbindung und die vier Datenquellen.
