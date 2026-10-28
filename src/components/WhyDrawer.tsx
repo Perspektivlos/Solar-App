@@ -45,7 +45,7 @@ export const WhyDrawer: React.FC<WhyDrawerProps> = ({
         reason: 'Warum wird aktuell 1.420 W erzeugt und nicht das theoretische Maximum von 2.320 Wp?',
         checks: [
           { check: 'Hoymiles HM-1500 Limitierung', status: 'ok', note: 'Aktuelles Limit steht auf 100% (1.500 W). Keine Drosselung durch AhoyDTU aktiv.' },
-          { check: 'Einstrahlung & Sonnenstand', status: 'info', note: 'Sonnenstand Nachmittag (~42° Azimut). String Ost (Victron #1) liefert 240W, String West (Victron #2) 220W, Hoymiles Dach 960W.' },
+          { check: 'Einstrahlung & Sonnenstand', status: 'info', note: 'Sonnenstand Nachmittag (~42° Azimut). MPPT [288] liefert 240W, MPPT [289] 220W, Hoymiles Dach 960W.' },
           { check: 'Inverter Temperatur', status: 'ok', note: 'Gehäusetemperatur 38.5°C (weit unter thermischem Throttling bei >65°C).' },
           { check: 'Netzspannungsgrenzen (VDE-AR-N 4105)', status: 'ok', note: 'Netzspannung liegt bei 231.2V (Abschaltung erst bei >253V).' },
           { check: 'Batterie-Aufnahmefähigkeit', status: 'ok', note: 'LiFePO4 bei 78% SoC, nimmt Ladung unbegrenzt auf.' }
@@ -55,7 +55,7 @@ export const WhyDrawer: React.FC<WhyDrawerProps> = ({
         {
           step: 1,
           layer: 'Sensor / Messfühler',
-          name: '4x Trina Solar 420Wp (Süddach) + 4x 410Wp Module (Ost/West)',
+          name: 'PV-Module an HM-1500 und 2x MPPT 150/35 (Belegung nicht erfasst)',
           details: 'Gleichstromerzeugung der Solarzellen'
         },
         {
@@ -73,14 +73,14 @@ export const WhyDrawer: React.FC<WhyDrawerProps> = ({
         {
           step: 4,
           layer: 'MQTT Topic / API',
-          name: 'venus/pv/ahoydtu/HM1500/ch0/P_AC & N/d4aa81/solarcharger/288/Yield/Power',
+          name: 'venus/pv/ahoydtu/HM1500/ch0/P_AC & N/b827eb79321c/solarcharger/288/Yield/Power',
           details: 'MQTT Broker Mosquitto (192.168.0.201:1883)',
           payloadSnippet: JSON.stringify({ P_AC: telemetry.pvHoymilesWatts, U_AC: 231.5, I_AC: 4.15, yield_mppt1: telemetry.pvVictronMppt1Watts, yield_mppt2: telemetry.pvVictronMppt2Watts }, null, 2)
         },
         {
           step: 5,
           layer: 'Datenbank',
-          name: 'InfluxDB v2 (192.168.0.203:8086) // Bucket: solar_home',
+          name: 'InfluxDB v2 (192.168.0.203:8086) // Bucket: solar',
           details: 'Measurement: pv_telemetry, Field: total_pv_watts, Tags: inverter=HM-1500'
         },
         {
@@ -107,8 +107,8 @@ export const WhyDrawer: React.FC<WhyDrawerProps> = ({
         {
           step: 1,
           layer: 'Sensor / Messfühler',
-          name: 'JK-BMS Shunt & 16S Balancerleitungen (6x Power Queen 100Ah)',
-          details: 'Hochpräziser Strom-Shunt erfasst -11.4A Entladestrom bei 52.8V'
+          name: 'MPPT-Spannung (Venus OS) & T2SG VBAT (6x Power Queen 100Ah, 2S3P)',
+          details: 'Kein Shunt verbaut: Entladestrom wird aus T2SG-AC-Leistung und Spannung abgeleitet'
         },
         {
           step: 2,
@@ -132,7 +132,7 @@ export const WhyDrawer: React.FC<WhyDrawerProps> = ({
         {
           step: 5,
           layer: 'Datenbank',
-          name: 'InfluxDB v2 (192.168.0.203) // Bucket: solar_home',
+          name: 'InfluxDB v2 (192.168.0.203) // Bucket: solar',
           details: 'Measurement: battery_bms, Field: watts, soc, voltage'
         },
         {
@@ -184,7 +184,7 @@ export const WhyDrawer: React.FC<WhyDrawerProps> = ({
         {
           step: 5,
           layer: 'Datenbank',
-          name: 'InfluxDB v2 Bucket: solar_home // Measurement: grid_shelly',
+          name: 'InfluxDB v2 Bucket: solar // Measurement: grid_shelly',
           details: 'Speichert a_power, b_power, c_power und total_power'
         },
         {

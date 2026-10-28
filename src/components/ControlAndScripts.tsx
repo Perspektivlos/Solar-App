@@ -136,11 +136,11 @@ topic read venus/grid/shellypro/#
 topic write Trucki/#
 topic read Trucki/cmd/#
 
-# 4. Venus OS (Victron MPPTs & JK-BMS)
+# 4. Venus OS (Victron MPPTs)
 user victron_venus
-topic write N/d4aa81/#
+topic write N/b827eb79321c/#
 topic write venus/battery/lifepo4/#
-topic read R/d4aa81/#
+topic read R/b827eb79321c/#
 
 # 5. Solar-Lokal-App Core (Lesezugriff auf alles, Schreibzugriff auf Steuerung)
 user solar_app
@@ -852,10 +852,10 @@ topic write venus/pv/ahoydtu/+/cmd/#
               </div>
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight">
-                  Batterie-Schutzschwellwerte (JK-BMS / VenusOS)
+                  Batterie-Schutzschwellwerte (T2SG / Power Queen)
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  15.36 kWh 48V Speicher (6x Power Queen 100Ah parallel)
+                  15.36 kWh 48V Speicher (6x Power Queen 25.6V 100Ah, 2S3P)
                 </p>
               </div>
             </div>
@@ -863,18 +863,18 @@ topic write venus/pv/ahoydtu/+/cmd/#
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               <div className="p-3 rounded-lg bg-slate-900/40 border border-white/[0.06]">
                 <span className="text-slate-400 block text-[10px] uppercase font-mono-code">Cut-off Unterspannung:</span>
-                <span className="text-base font-bold text-amber-400 font-mono-code">48.0 V (15% SoC)</span>
+                <span className="text-base font-bold text-amber-400 font-mono-code">47.0 V (Reboot 51.8 V)</span>
                 <span className="text-[10px] text-slate-500 block mt-1">Trucki stoppt Entladung</span>
               </div>
               <div className="p-3 rounded-lg bg-slate-900/40 border border-white/[0.06]">
-                <span className="text-slate-400 block text-[10px] uppercase font-mono-code">Float / Erhaltungsspannung:</span>
-                <span className="text-base font-bold text-emerald-400 font-mono-code">54.4 V (3.40V/Zelle)</span>
-                <span className="text-[10px] text-slate-500 block mt-1">Victron MPPT Erhaltung</span>
+                <span className="text-slate-400 block text-[10px] uppercase font-mono-code">Ladespannung (Hersteller):</span>
+                <span className="text-base font-bold text-emerald-400 font-mono-code">57.6 V (2x 28.8 V)</span>
+                <span className="text-[10px] text-slate-500 block mt-1">Victron MPPT Ladeprofil pruefen</span>
               </div>
               <div className="p-3 rounded-lg bg-slate-900/40 border border-white/[0.06]">
                 <span className="text-slate-400 block text-[10px] uppercase font-mono-code">Max. Entladestrom:</span>
-                <span className="text-base font-bold text-sky-400 font-mono-code">40.0 A (~2100W)</span>
-                <span className="text-[10px] text-slate-500 block mt-1">JK-BMS 100A Dauerlast</span>
+                <span className="text-base font-bold text-sky-400 font-mono-code">300 A (3x 100 A BMS)</span>
+                <span className="text-[10px] text-slate-500 block mt-1">Grenze der internen BMS, nicht des SUN</span>
               </div>
             </div>
           </div>

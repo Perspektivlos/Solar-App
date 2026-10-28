@@ -198,8 +198,8 @@ export const NetworkIpPlan: React.FC<NetworkIpPlanProps> = ({
                               ? 'http://trucki.local' 
                               : host.name.includes('shellypro3em.local')
                               ? 'http://shellypro3em.local'
-                              : host.name.includes('ahoy-dtu.local')
-                              ? 'http://ahoy-dtu.local'
+                              : host.name.includes('ahoydtu.local')
+                              ? 'http://ahoydtu.local'
                               : host.port === 8006
                               ? `https://${host.ip}:8006`
                               : `http://${host.ip}${host.port && host.port !== 80 ? `:${host.port}` : ''}`

@@ -969,7 +969,7 @@ export const EnergyAnalytics: React.FC<EnergyAnalyticsProps> = ({
               <div key={ch.channel} className="p-3 rounded-xl bg-slate-900/60 border border-white/[0.06] text-xs font-mono-code">
                 <div className="flex justify-between items-center text-slate-400 mb-1">
                   <span className="text-amber-400 font-semibold">Kanal {ch.channel}</span>
-                  <span className="text-slate-500 text-[11px]">Trina 420Wp</span>
+                  <span className="text-slate-500 text-[11px]">HM-1500</span>
                 </div>
                 <div className="text-lg font-bold font-mono-code text-white">
                   {ch.power} <span className="text-xs text-amber-400 font-normal">W</span>
@@ -994,11 +994,11 @@ export const EnergyAnalytics: React.FC<EnergyAnalyticsProps> = ({
               Zusätzlich: 2x Victron SmartSolar MPPT 150/35 (Venus OS)
             </div>
             <div className="flex justify-between text-slate-300">
-              <span>MPPT 1 (Ost-Ausrichtung):</span>
+              <span>MPPT 150/35 [288]:</span>
               <span className="font-semibold text-amber-300">{telemetry.pvVictronMppt1Watts} W (Float)</span>
             </div>
             <div className="flex justify-between text-slate-300">
-              <span>MPPT 2 (West-Ausrichtung):</span>
+              <span>MPPT 150/35 [289]:</span>
               <span className="font-semibold text-amber-300">{telemetry.pvVictronMppt2Watts} W (Float)</span>
             </div>
           </div>

@@ -299,7 +299,7 @@ services:
       - DOCKER_INFLUXDB_INIT_USERNAME=solaradmin
       - DOCKER_INFLUXDB_INIT_PASSWORD=SolarSecureMasterPass2026!
       - DOCKER_INFLUXDB_INIT_ORG=solarhome
-      - DOCKER_INFLUXDB_INIT_BUCKET=solar_home
+      - DOCKER_INFLUXDB_INIT_BUCKET=solar
       - DOCKER_INFLUXDB_INIT_RETENTION=365d
     volumes:
       - ./influxdb/data:/var/lib/influxdb2
@@ -356,11 +356,11 @@ topic read T2SG/METEROVR
 topic read T2SG/ZEPCOVR
 topic read T2SG/REBOOTOVR
 
-# 4. Venus OS (Victron MPPTs & JK-BMS)
+# 4. Venus OS (Victron MPPTs)
 user victron_venus
-topic write N/d4aa81/#
+topic write N/b827eb79321c/#
 topic write venus/battery/lifepo4/#
-topic read R/d4aa81/#
+topic read R/b827eb79321c/#
 
 # 5. Solar-Lokal-App Core (Lesezugriff auf alles, Schreibzugriff auf Steuerung)
 user solar_app

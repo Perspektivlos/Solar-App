@@ -575,7 +575,7 @@ export const SciFiFlowCanvas: React.FC<SciFiFlowCanvasProps> = ({
                   textAnchor="middle"
                   className="text-[7px] font-mono-code fill-slate-400"
                 >
-                  SUN-2000 NULLEINSP.
+                  SUN NULLEINSP.
                 </text>
               </g>
             </>
@@ -777,7 +777,7 @@ export const SciFiFlowCanvas: React.FC<SciFiFlowCanvasProps> = ({
             </text>
           </g>
 
-          {/* --- NODE 4: SUN-2000 / TRUCKI (Bottom-Right: 740, 335) --- */}
+          {/* --- NODE 4: SUN-G2 / TRUCKI (Bottom-Right: 740, 335) --- */}
           <g 
             transform="translate(740, 335)"
             onClick={() => onInspectNode('house')}

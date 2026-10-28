@@ -136,11 +136,11 @@ export const SciFiEnergyFlow: React.FC<SciFiEnergyFlowProps> = ({
               <span className="text-amber-400/90 font-medium">{telemetry.pvHoymilesWatts} W ({telemetry.hoymilesLimitPercent}%)</span>
             </div>
             <div className="flex justify-between text-slate-400">
-              <span>Victron MPPT Ost (DC):</span>
+              <span>Victron MPPT [288] (DC):</span>
               <span className="text-slate-300">{telemetry.pvVictronMppt1Watts} W</span>
             </div>
             <div className="flex justify-between text-slate-400">
-              <span>Victron MPPT West (DC):</span>
+              <span>Victron MPPT [289] (DC):</span>
               <span className="text-slate-300">{telemetry.pvVictronMppt2Watts} W</span>
             </div>
           </div>
