@@ -403,6 +403,7 @@ app.get('/api/health/hosts', async (_req, res) => {
     { id: 'mqtt', name: 'Mosquitto Broker (TLS)', ip: '192.168.0.201', port: 8883, service: 'MQTTS:8883' },
     { id: 'grafana', name: 'Grafana', ip: '192.168.0.202', port: 3000, service: 'Dashboards' },
     { id: 'influxdb', name: 'InfluxDB 2.x', ip: '192.168.0.203', port: 8086, service: 'Time-Series DB' },
+    { id: 'app', name: 'Solar-App (LXC)', ip: '192.168.0.222', port: 80, service: 'Web-UI & REST API' },
   ];
 
   const results = await Promise.all(
@@ -474,6 +475,7 @@ app.get('/api/system/info', (_req, res) => {
       mqttBroker: '192.168.0.201',
       grafana: '192.168.0.202',
       influxdb: '192.168.0.203',
+      solarApp: 'http://192.168.0.222',
     },
   });
 });

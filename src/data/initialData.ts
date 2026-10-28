@@ -374,7 +374,7 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
     location: NE,
     operatingLimits: [],
     isIstZustand: true,
-    notes: 'Hostet die LXC-Container fuer Mosquitto, Grafana, InfluxDB und die Solar-Lokal-App (Standard-IP 192.168.0.220).'
+    notes: 'Hostet die LXC-Container fuer Mosquitto, Grafana, InfluxDB und die Solar-App (192.168.0.222).'
   },
   {
     id: 'mosquitto-broker',
@@ -471,7 +471,7 @@ export const INITIAL_NETWORK_HOSTS: NetworkHost[] = [
   { ip: '192.168.0.201', port: 8883, name: 'Mosquitto MQTT Broker', deviceCategory: 'MQTT Broker', services: ['MQTTS:8883', 'MQTT:1883'], status: 'Online', latencyMs: 0.3, mac: NE },
   { ip: '192.168.0.202', port: 3000, name: 'Grafana', deviceCategory: 'Visualisierung', services: ['HTTP:3000'], status: 'Online', latencyMs: 0.5, mac: NE },
   { ip: '192.168.0.203', port: 8086, name: 'InfluxDB 2.x', deviceCategory: 'Datenbank', services: ['HTTP:8086', 'Flux'], status: 'Online', latencyMs: 0.6, mac: NE },
-  { ip: '192.168.0.220', port: 80, name: 'Solar-Lokal-App (LXC)', deviceCategory: 'Anwendung', services: ['HTTP'], status: 'Online', latencyMs: 0.5, mac: NE }
+  { ip: '192.168.0.222', port: 80, name: 'Solar-App (LXC)', deviceCategory: 'Anwendung', services: ['HTTP'], status: 'Online', latencyMs: 0.5, mac: NE }
 ];
 
 export const INITIAL_DISCOVERED_DEVICE: DiscoveredDevice = {
