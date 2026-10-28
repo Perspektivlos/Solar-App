@@ -60,10 +60,9 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [resolvedMdns, setResolvedMdns] = useState<Record<string, MdnsResolvedInfo>>({
     'http://trucki.local': { ip: '192.168.0.102', latency: 2.1, status: '200 OK (T2SG v1.15)' },
-    'http://shellypro3em.local': { ip: '192.168.0.100', latency: 1.2, status: '200 OK (Gen2 RPC)' },
-    'http://ahoy-dtu.local': { ip: '192.168.0.101', latency: 4.8, status: '200 OK (Ahoy REST)' },
-    'http://venus.local': { ip: '192.168.0.111', latency: 1.6, status: '200 OK (VenusOS GUI)' },
-    'http://jkbms.local': { ip: '192.168.0.103', latency: 3.4, status: '200 OK (JK-BLE Bridge)' }
+    'http://192.168.0.100': { ip: '192.168.0.100', latency: 1.2, status: '200 OK (Gen2 RPC)' },
+    'http://ahoydtu.local': { ip: '192.168.0.101', latency: 4.8, status: '200 OK (Ahoy REST)' },
+    'http://venus.local': { ip: '192.168.0.111', latency: 1.6, status: '200 OK (VenusOS GUI)' }
   });
 
   const parameterAuditList: ParameterCheckResult[] = [
@@ -107,7 +106,7 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
       sourceDoc: 'Handbuch T2SG v1.15',
       sourcePage: 'S. 3 (RS485 Bus)',
       status: 'passed',
-      explanation: 'Feste serielle Baudrate des Lumentree SUN-2000 Modbus-Limiter-Ports (Pin RJ45 / Schraubklemme A/B).',
+      explanation: 'Feste serielle Baudrate des Lumentree SUN Modbus-Limiter-Ports (Pin RJ45 / Schraubklemme A/B).',
       tolerance: 'Exakt 9600 Baud 8N1'
     },
     {
@@ -115,9 +114,9 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
       device: 'Trucki2Shelly Gateway (T2SG)',
       category: 'trucki',
       parameter: 'VBat Cutoff (Tiefentladeschutz)',
-      configuredValue: '48.0',
+      configuredValue: '47.0',
       unit: 'V DC',
-      nominalRange: '45.0 V – 48.5 V (3.00 V/Zelle bei 16S)',
+      nominalRange: '45.0 V – 48.5 V (2.94 V/Zelle bei 16S)',
       sourceDoc: 'Handbuch T2SG v1.15',
       sourcePage: 'S. 6 (Batterieschutz)',
       status: 'passed',
@@ -129,9 +128,9 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
       device: 'Trucki2Shelly Gateway (T2SG)',
       category: 'trucki',
       parameter: 'VBat Reboot (Wiederanlaufschwelle)',
-      configuredValue: '52.0',
+      configuredValue: '51.8',
       unit: 'V DC',
-      nominalRange: '50.0 V – 53.0 V (3.25 V/Zelle bei 16S)',
+      nominalRange: '50.0 V – 53.0 V (3.24 V/Zelle bei 16S)',
       sourceDoc: 'Handbuch T2SG v1.15',
       sourcePage: 'S. 6 (Hysterese)',
       status: 'passed',
@@ -143,12 +142,12 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
       device: 'Trucki2Shelly Gateway (T2SG)',
       category: 'trucki',
       parameter: 'K-Faktor DAC Kalibrierung',
-      configuredValue: '985',
+      configuredValue: 'nicht erfasst',
       unit: '—',
       nominalRange: '950 – 1050 (Standard: 1000)',
       sourceDoc: 'Handbuch T2SG v1.15',
       sourcePage: 'S. 9 (DAC Kennlinie)',
-      status: 'passed',
+      status: 'info',
       explanation: 'Feinjustierung der DAC-Ausgangsspannung zur RS485-Leistungskurve des Lumentree Inverters für hochpräzise Leistungsregelung.',
       tolerance: 'Bereich 900 – 1100'
     },
@@ -181,10 +180,10 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
       tolerance: 'Großbuchstaben zwingend'
     },
 
-    // 2. Lumentree SUN-2000
+    // 2. Lumentree SUN-G2
     {
       id: 'lum-dc-range',
-      device: 'Lumentree SUN-2000G2-WAL',
+      device: 'Lumentree SUN-G2 (H)',
       category: 'lumentree',
       parameter: 'DC Eingangsspannungsbereich (Modell H)',
       configuredValue: '45 – 90',
@@ -198,7 +197,7 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
     },
     {
       id: 'lum-start-v',
-      device: 'Lumentree SUN-2000G2-WAL',
+      device: 'Lumentree SUN-G2 (H)',
       category: 'lumentree',
       parameter: 'DC Mindeststartspannung',
       configuredValue: '49.0',
@@ -212,7 +211,7 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
     },
     {
       id: 'lum-max-power',
-      device: 'Lumentree SUN-2000G2-WAL',
+      device: 'Lumentree SUN-G2 (H)',
       category: 'lumentree',
       parameter: 'Maximale kontinuierliche AC-Ausgangsleistung',
       configuredValue: '1800',
@@ -279,8 +278,8 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
       sourceDoc: 'Power Queen Handbuch',
       sourcePage: 'S. 5 (Schutzfunktionen)',
       status: 'passed',
-      explanation: 'Der Software-Cutoff am Trucki greift bereits bei 48.0 V (3.00 V/Zelle) und entlastet die Akkus, lange bevor der interne BMS-Notabschalter bei 40 V auslöst.',
-      tolerance: 'Software 48V > Hardware 40V'
+      explanation: 'Der Software-Cutoff am Trucki greift bereits bei 47.0 V (2.94 V/Zelle) und entlastet die Akkus, lange bevor der interne BMS-Notabschalter bei 40 V auslöst.',
+      tolerance: 'Software 47V > Hardware 40V'
     },
     {
       id: 'pq-max-discharge',
@@ -318,10 +317,10 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
       configuredValue: '0.005 (5 mV)',
       unit: 'V',
       nominalRange: '< 0.030 V (30 mV Grenzwert)',
-      sourceDoc: 'JK-BMS & Power Queen Spezifikation',
+      sourceDoc: 'Power Queen Spezifikation',
       sourcePage: 'S. 9 (Balancing)',
-      status: 'passed',
-      explanation: 'Aktuelle gemessene Drift aller 16 Zellen beträgt nur 5 mV (3.301 V bis 3.306 V). Der aktive 2A Balancer hält die Zellen perfekt synchron.',
+      status: 'warning',
+      explanation: 'Nicht messbar: Die internen BMS der Power-Queen-Bloecke sind nicht an die App angebunden. Zellwerte sind Demo-Daten.',
       tolerance: 'Maximal 30 mV'
     },
 
@@ -331,9 +330,9 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
       device: 'AhoyDTU & Hoymiles HM-1500',
       category: 'hoymiles',
       parameter: 'Web-UI & REST API Hostname',
-      configuredValue: 'http://ahoy-dtu.local',
+      configuredValue: 'http://ahoydtu.local',
       unit: 'URL',
-      nominalRange: 'http://ahoy-dtu.local (Port 80)',
+      nominalRange: 'http://ahoydtu.local (Port 80)',
       sourceDoc: 'AhoyDTU Dokumentation',
       sourcePage: 'Kap. Network Setup',
       status: 'passed',
@@ -351,7 +350,7 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
       sourceDoc: 'Hoymiles HM-1500 Handbuch',
       sourcePage: 'S. 2 (Spezifikationen)',
       status: 'passed',
-      explanation: 'Hoymiles HM-1500 speist bis zu 1500 VA ein. Aktuell 960 W (4x Trina 420Wp Module Süd-West).',
+      explanation: 'Hoymiles HM-1500 speist bis zu 1500 VA ein. Aktuell 960 W.',
       tolerance: '0 – 1500 W'
     },
     {
@@ -375,9 +374,9 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
       device: 'Shelly Pro 3EM (Haupteinspeisung)',
       category: 'shelly',
       parameter: 'mDNS Hostname & RPC API',
-      configuredValue: 'http://shellypro3em.local',
+      configuredValue: 'http://192.168.0.100',
       unit: 'URL',
-      nominalRange: 'http://shellypro3em.local (Port 80)',
+      nominalRange: 'http://192.168.0.100 (Port 80)',
       sourceDoc: 'Shelly Pro 3EM Handbuch',
       sourcePage: 'S. 1 (RPC Gen2)',
       status: 'passed',
@@ -472,10 +471,9 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
       // Update ping latencies slightly to simulate real check
       setResolvedMdns({
         'http://trucki.local': { ip: '192.168.0.102', latency: Math.floor(Math.random() * 3 + 1.8), status: '200 OK (T2SG v1.15 Aktiv)' },
-        'http://shellypro3em.local': { ip: '192.168.0.100', latency: Math.floor(Math.random() * 2 + 1.0), status: '200 OK (Gen2 RPC Aktiv)' },
-        'http://ahoy-dtu.local': { ip: '192.168.0.101', latency: Math.floor(Math.random() * 4 + 3.5), status: '200 OK (Ahoy REST Aktiv)' },
-        'http://venus.local': { ip: '192.168.0.111', latency: Math.floor(Math.random() * 2 + 1.2), status: '200 OK (VenusOS GUI Aktiv)' },
-        'http://jkbms.local': { ip: '192.168.0.103', latency: Math.floor(Math.random() * 3 + 2.5), status: '200 OK (JK-BLE Bridge Aktiv)' }
+        'http://192.168.0.100': { ip: '192.168.0.100', latency: Math.floor(Math.random() * 2 + 1.0), status: '200 OK (Gen2 RPC Aktiv)' },
+        'http://ahoydtu.local': { ip: '192.168.0.101', latency: Math.floor(Math.random() * 4 + 3.5), status: '200 OK (Ahoy REST Aktiv)' },
+        'http://venus.local': { ip: '192.168.0.111', latency: Math.floor(Math.random() * 2 + 1.2), status: '200 OK (VenusOS GUI Aktiv)' }
       });
     }, 1200);
   };

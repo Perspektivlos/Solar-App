@@ -71,58 +71,68 @@ export const INITIAL_TELEMETRY: SolarTelemetry = {
   selfConsumptionPercent: 94.2,
 };
 
+// ---------------------------------------------------------------------------
+// Geraeteinventar - abgeglichen mit der realen Anlage (Stand 2026-10-28).
+// Quellen: Solar-Lokal-App (DEFAULT_CONFIG), Integrationen-Screenshot 2026-10-20,
+// T2SG-Startkonfiguration fuer 6x Power Queen 25,6 V 100 Ah.
+// Werte, die noch nicht erfasst sind (Seriennummer, MAC, Firmware), stehen
+// bewusst auf 'nicht erfasst' statt auf erfundenen Platzhaltern.
+// ---------------------------------------------------------------------------
+const NE = 'nicht erfasst';
+const VRM_ID = 'b827eb79321c';
+const LAST_CHECK = '2026-10-20 16:19:02';
+
 export const INITIAL_DEVICES: DeviceInventoryItem[] = [
   {
     id: 'shelly-pro-3em',
-    name: 'Shelly Pro 3EM (Haupteinspeisung)',
+    name: 'Shelly Pro 3EM (Netzanschlusspunkt)',
     category: 'Netz',
-    vendor: 'Allterco / Shelly',
+    vendor: 'Shelly',
     model: 'Pro 3EM',
-    serialNumber: '34945474D90C',
+    serialNumber: NE,
     ip: '192.168.0.100',
-    mac: '34:94:54:74:d9:0c',
-    hostname: 'shellypro3em.local',
+    mac: NE,
+    hostname: '192.168.0.100',
     status: 'online',
-    firmwareVersion: 'v1.4.2',
-    firmwareStatus: 'Aktuell',
-    lastChecked: '2026-09-14 14:30:12',
-    hardwareSpecs: 'DIN-Schiene, 3x 120A Wandlerklemmen, LAN + WLAN, Dual-Core ESP32',
-    services: ['HTTP Web-UI', 'MQTT', 'RPC WebSockets', 'mDNS (shellypro3em.local)'],
+    firmwareVersion: NE,
+    firmwareStatus: 'Unbekannt',
+    lastChecked: LAST_CHECK,
+    hardwareSpecs: '3-Phasen-Energiemesser, Gen2 RPC, Outbound-WebSocket zu Venus OS',
+    services: ['HTTP Web-UI', 'Gen2 RPC', 'MQTT', 'Outbound WebSocket -> Venus OS'],
     mqttTopics: [
       'venus/grid/shellypro/status/em:0',
-      'venus/grid/shellypro/status/emdata:0',
-      'shellypro3em/events/rpc'
+      'venus/grid/shellypro/online'
     ],
     apiEndpoints: [
-      'http://shellypro3em.local/rpc/EM.GetStatus?id=0',
       'http://192.168.0.100/rpc/EM.GetStatus?id=0',
       'http://192.168.0.100/rpc/Shelly.GetDeviceInfo'
     ],
-    location: 'Hauptverteilung / Zählerschrank Feld 2',
+    location: 'Netzanschlusspunkt / Zaehlerschrank',
     operatingLimits: [
-      { parameter: 'Max. Dauerstrom', value: '120', unit: 'A', description: 'Messgrenze Stromwandler' },
-      { parameter: 'Spannungsbereich', value: '110 - 240', unit: 'V AC', description: 'Toleranzbereich' },
-      { parameter: 'Update-Intervall', value: '1.0', unit: 's', description: 'MQTT Push Rate' }
+      { parameter: 'Rolle in Venus OS', value: 'Grid Meter', unit: '', description: 'Per WebSocket als "Shelly energy meter" erkannt' },
+      { parameter: 'VRM-Instanz', value: '40', unit: '', description: 'Vergeben durch Venus OS' },
+      { parameter: 'WebSocket-Port', value: '58354', unit: '', description: 'Verbindung Shelly -> Venus OS' },
+      { parameter: 'Vorzeichen', value: '+ Bezug / - Einspeisung', unit: '', description: 'Konvention fuer T2SG und App' }
     ],
     isIstZustand: true,
-    notes: 'Erfasst phasenbezogenen Netzbezug und Rückspeisung für dynamische Trucki-Nulleinspeisung.'
+    notes: 'Einziges Messgeraet am Netzanschlusspunkt. Liefert den Zaehlerwert fuer die T2SG-Nulleinspeisung und ist in Venus OS als Grid Meter eingebunden.'
   },
   {
     id: 'hoymiles-ahoy',
     name: 'AhoyDTU & Hoymiles HM-1500',
     category: 'PV',
-    vendor: 'Hoymiles / AhoyDTU OpenSource',
-    model: 'HM-1500 (via ESP32 + NRF24L01+)',
-    serialNumber: '116182104592',
+    vendor: 'Hoymiles / AhoyDTU',
+    model: 'HM-1500 (via AhoyDTU)',
+    serialNumber: NE,
     ip: '192.168.0.101',
-    mac: '24:6f:28:90:31:ec',
-    hostname: 'ahoy-dtu.local',
+    mac: NE,
+    hostname: 'ahoydtu.local',
     status: 'online',
-    firmwareVersion: 'v0.8.83',
-    firmwareStatus: 'Aktuell',
-    lastChecked: '2026-09-14 14:32:00',
-    hardwareSpecs: '4x MPPT Inputs (je 2 Strings parallel), 1500W AC Peak, Funk 2.4GHz RF',
-    services: ['HTTP Web-UI (http://ahoy-dtu.local)', 'MQTT', 'REST API', 'Syslog'],
+    firmwareVersion: NE,
+    firmwareStatus: 'Unbekannt',
+    lastChecked: LAST_CHECK,
+    hardwareSpecs: 'Mikrowechselrichter 1500 W AC, 4 DC-Eingaenge an 2 MPPT, max. 60 V DC',
+    services: ['HTTP Web-UI', 'REST API', 'MQTT'],
     mqttTopics: [
       'venus/pv/ahoydtu/HM1500/ch0/P_AC',
       'venus/pv/ahoydtu/HM1500/ch0/U_AC',
@@ -130,317 +140,333 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
       'venus/pv/ahoydtu/HM1500/status'
     ],
     apiEndpoints: [
-      'http://ahoy-dtu.local/api/live',
-      'http://192.168.0.101/api/live',
-      'http://192.168.0.101/api/ctrl'
+      'http://ahoydtu.local/api/live',
+      'http://ahoydtu.local/api/inverter/id/0',
+      'http://192.168.0.101/api/live'
     ],
-    location: 'Garage Süddach / Unterverteilung PV',
+    location: NE,
     operatingLimits: [
-      { parameter: 'Max AC Leistung', value: '1500', unit: 'W', description: 'Nennleistung des HM-1500' },
-      { parameter: 'Aktuelles Limit', value: '100', unit: '%', description: 'Per AhoyDTU gedrosselt/freigegeben' },
-      { parameter: 'Max DC Spannung', value: '60', unit: 'V', description: 'Leerlaufspannung Schutzgrenze' }
+      { parameter: 'Max AC-Leistung', value: '1500', unit: 'W', description: 'Nennleistung HM-1500' },
+      { parameter: 'Max DC-Spannung', value: '60', unit: 'V', description: 'Pro Eingang' },
+      { parameter: 'Ahoy Inverter-ID', value: '0', unit: '', description: 'Wie in der Solar-Lokal-App konfiguriert' },
+      { parameter: 'Venus OS', value: 'PV-Inverter', unit: '', description: 'Plugin venus.dbus-hoymiles, Phase L1, AC-Position 0' }
     ],
     isIstZustand: true,
-    notes: 'Dachausrichtung Süd-West. 4 Module à 420Wp (Trina Solar Vertex S).'
+    notes: 'Speist AC ins Hausnetz. In Venus OS als PV-Inverter (nicht als Grid Meter oder Batterie) eingebunden. Modulbelegung der vier Eingaenge noch nicht erfasst.'
   },
   {
     id: 'trucki-sun2000',
-    name: 'Trucki2Shelly Gateway & Lumentree SUN-2000G2',
+    name: 'Trucki2Shelly Gateway (T2SG) & Lumentree SUN',
     category: 'Batterie / AC-System',
-    vendor: 'Trucki.eu / Lumentree',
-    model: 'T2SG v1.15 + SUN-2000G2-WAL (Modell H: 45-90V DC)',
-    serialNumber: 'TRK-582910-A',
+    vendor: 'Trucki / Lumentree',
+    model: 'T2SG v1.15 + Lumentree SUN-G2 (H-Variante 45-90 V DC)',
+    serialNumber: NE,
     ip: '192.168.0.102',
-    mac: 'a4:cf:12:87:66:b4',
+    mac: NE,
     hostname: 'trucki.local',
     status: 'online',
-    firmwareVersion: 'v1.15 (18.01.2026)',
-    firmwareStatus: 'Aktuell',
-    lastChecked: '2026-09-14 14:31:45',
-    hardwareSpecs: 'ESP8266 Steuerung mit RS485-Interface zu Lumentree Inverter, DAC-Platine, 45V-90V DC Input (Startspannung 49V)',
-    services: ['HTTP Web-UI (http://trucki.local)', 'MQTT (Großbuchstaben)', 'mDNS (trucki.local)', 'System Log (/log.txt)'],
+    firmwareVersion: 'v1.15',
+    firmwareStatus: 'Unbekannt',
+    lastChecked: LAST_CHECK,
+    hardwareSpecs: 'T2SG-Stick am Lumentree SUN, ohne Modbus-Platine. Zaehlerwert vom Shelly Pro 3EM per HTTP.',
+    services: ['HTTP Web-UI', 'JSON Live (/jsonlive)', 'MQTT', 'System-Log (/log.txt)'],
     mqttTopics: [
-      'T2SG/ACDISPLAY',
       'T2SG/ACSETPOINT',
-      'T2SG/VBAT',
+      'T2SG/ACDISPLAY',
       'T2SG/VGRID',
-      'T2SG/METER',
+      'T2SG/VBAT',
       'T2SG/TEMPERATURE',
+      'T2SG/METER',
+      'T2SG/MAXPOWER',
+      'T2SG/TARGET',
+      'T2SG/DAYENERGY',
+      'T2SG/TOTALENERGY',
       'T2SG/STATE',
       'T2SG/ZEPC',
       'T2SG/ACSETPOINTOVR',
       'T2SG/METEROVR',
-      'T2SG/ZEPCOVR',
+      'T2SG/MAXPOWEROVR',
+      'T2SG/TARGETOVR',
       'T2SG/REBOOTOVR'
     ],
     apiEndpoints: [
       'http://trucki.local/',
+      'http://trucki.local/jsonlive',
       'http://trucki.local/log.txt',
-      'http://192.168.0.102/',
-      'http://192.168.0.102/log.txt',
+      'http://192.168.0.102/jsonlive',
       'http://192.168.4.1 (Fallback AP)'
     ],
-    location: 'Technikraum Keller / Batteriewand',
+    location: NE,
     operatingLimits: [
-      { parameter: 'Max Inverter Output', value: '1800', unit: 'W', description: 'Hard Limit Sun-2000 (Begrenzung via MAXPOWEROVR möglich)' },
-      { parameter: 'VBat Cutoff (Abschaltung)', value: '48.0', unit: 'V', description: 'Tiefentladeschutz (3.00V/Zelle bei 16S LiFePO4)' },
-      { parameter: 'VBat Reboot (Wiederanlauf)', value: '52.0', unit: 'V', description: 'Wiederanlaufschwelle nach Unterspannung (3.25V/Zelle)' },
-      { parameter: 'Übertemperatur-Abschaltung', value: '75', unit: '°C', description: 'Automatischer Hardware-Schutzstop (Wiedereinschalten < 65°C)' },
-      { parameter: 'K-Faktor Kalibrierung', value: '985', unit: '—', description: 'Justierung RS485 Kennlinie (Referenzbereich 950-1050)' }
+      { parameter: 'Meter-Quelle', value: '192.168.0.100', unit: '', description: 'Shelly Pro 3EM, total_act_power' },
+      { parameter: 'Target', value: '10', unit: 'W', description: 'Startwert, ruhigere Regelung als 0 W' },
+      { parameter: 'Mittelung', value: '10', unit: '', description: 'Bei nervoeser Regelung erhoehen' },
+      { parameter: 'Direct -> SUN', value: 'AUS', unit: '', description: 'Echte Regelung ueber den Zaehlerwert' },
+      { parameter: 'VBat Cutoff (Abschaltung)', value: '47.0', unit: 'V', description: 'Schutz vor tiefer Entladung (2S Power Queen)' },
+      { parameter: 'VBat Reboot (Start)', value: '51.8', unit: 'V', description: 'Wiederanlauf mit Abstand zum Cutoff' },
+      { parameter: 'Differenz-Schwellwert', value: '0.5', unit: 'V', description: 'Hysterese' },
+      { parameter: 'DC-Eingangsbereich', value: '45 - 90', unit: 'V', description: 'SUN-G2 H-Variante laut Lumentree-Anleitung' }
     ],
     isIstZustand: true,
-    notes: 'T2SG v1.15 regelt die Nulleinspeisung (ZEPC=1) über RS485 anhand der Shelly Pro 3EM Phasenwerte. Alle MQTT-Topics strikt in Großbuchstaben!'
+    notes: 'T2SG regelt den SUN ausserhalb von Venus OS (kein Modbus, kein Venus-Geraet). MQTT-Prefix entspricht dem Geraetenamen im T2SG (Default "T2SG"). Leistungsklasse des SUN noch offen.'
   },
   {
     id: 'lifepo4-battery-bank',
     name: '48V LiFePO4 Speicher (6x Power Queen 25.6V 100Ah)',
     category: 'Batterie / AC-System',
-    vendor: 'Power Queen / JK-BMS',
-    model: '6x Power Queen 25.6V 100Ah in 3P2S (51.2V 300Ah / 15.36 kWh)',
-    serialNumber: 'PQ-2024-B16S',
-    ip: '192.168.0.103',
-    mac: 'cc:50:e3:19:4a:22',
-    hostname: 'jkbms.local',
+    vendor: 'Power Queen',
+    model: '6x 25.6V 100Ah, 2S3P (51.2V 300Ah / 15.36 kWh)',
+    serialNumber: NE,
+    ip: '-',
+    mac: '-',
+    hostname: '-',
     status: 'online',
-    firmwareVersion: 'v15.30',
-    firmwareStatus: 'Aktuell',
-    lastChecked: '2026-09-14 14:32:10',
-    hardwareSpecs: '16S LiFePO4, 300A Smart Active Balance BMS (2A Balancer), 15.36 kWh Gesamtkapazität',
-    services: ['BLE', 'RS485', 'MQTT via ESPHome Bridge'],
+    firmwareVersion: NE,
+    firmwareStatus: 'Prüfung nicht möglich',
+    lastChecked: LAST_CHECK,
+    hardwareSpecs: '3 parallele Straenge aus je 2 Bloecken in Serie (16S je Strang), internes 100A-BMS pro Block, keine Netzwerkschnittstelle',
+    services: ['Internes BMS je Block'],
     mqttTopics: [
-      'venus/battery/lifepo4/soc',
-      'venus/battery/lifepo4/voltage',
-      'venus/battery/lifepo4/current',
-      'venus/battery/lifepo4/cell_deltas'
+      `N/${VRM_ID}/solarcharger/288/Dc/0/Voltage`,
+      `N/${VRM_ID}/solarcharger/289/Dc/0/Voltage`,
+      'T2SG/VBAT'
     ],
-    apiEndpoints: [
-      'http://192.168.0.103/metrics'
-    ],
-    location: 'Technikraum Keller / Gestell A',
+    apiEndpoints: [],
+    location: NE,
     operatingLimits: [
-      { parameter: 'Nennspannung', value: '51.2', unit: 'V', description: '16x 3.2V' },
-      { parameter: 'Ladeschluss', value: '56.8', unit: 'V', description: '3.55V / Zelle' },
-      { parameter: 'Entladeschluss', value: '46.4', unit: 'V', description: '2.90V / Zelle' },
-      { parameter: 'Max Entladestrom', value: '150', unit: 'A', description: 'Dauerbelastung' }
+      { parameter: 'Nennspannung', value: '51.2', unit: 'V', description: '2x 25.6 V in Serie' },
+      { parameter: 'Kapazitaet', value: '300 Ah / 15.36', unit: 'kWh', description: '3 Straenge parallel' },
+      { parameter: 'Ladespannung', value: '57.6', unit: 'V', description: '2x 28.8 V (Herstellerangabe je Block 28.8 V +/- 0.4 V)' },
+      { parameter: 'Max. Dauerstrom', value: '300', unit: 'A', description: '3x 100 A BMS (nur bei sauber symmetrischen Straengen)' },
+      { parameter: 'Max. Verschaltung', value: '2S4P', unit: '', description: 'Herstellergrenze' },
+      { parameter: 'Alarm Unterspannung', value: '48.0 / 46.4', unit: 'V', description: 'Warnung / kritisch (Solar-Lokal-App)' },
+      { parameter: 'Alarm Ueberspannung', value: '56.0 / 57.6', unit: 'V', description: 'Warnung / kritisch (Solar-Lokal-App)' }
     ],
     isIstZustand: true,
-    notes: 'Ausgezeichnete Zellbalance (< 5mV Zellendrift). Schutzschalter 200A DC verbaut.'
+    notes: 'Kein Batteriemonitor und keine BMS-Datenanbindung: Spannung kommt von den MPPTs (Venus OS) und vom T2SG (VBAT). SOC und Zellspannungen sind daher nur geschaetzt bzw. Demo-Werte. Straenge mit gleicher Kabellaenge und Absicherung betreiben.'
   },
   {
     id: 'victron-venusos',
-    name: 'Venus OS auf Raspberry Pi 3B',
+    name: 'Venus OS Large auf Raspberry Pi 3',
     category: 'Venus OS',
     vendor: 'Victron Energy / Raspberry Pi',
-    model: 'Raspberry Pi 3 Model B Rev 1.2 (Venus OS v3.30)',
-    serialNumber: 'RPi3B-00000000a22082',
+    model: 'Raspberry Pi 3 mit Venus OS Large',
+    serialNumber: VRM_ID,
     ip: '192.168.0.111',
-    mac: 'b8:27:eb:d4:aa:81',
+    mac: 'b8:27:eb:79:32:1c',
     hostname: 'venus.local',
     status: 'online',
-    firmwareVersion: 'v3.30',
-    firmwareStatus: 'Aktuell',
-    lastChecked: '2026-09-14 14:32:40',
-    hardwareSpecs: 'Quad-Core BCM2837, 1GB RAM, 2x VE.Direct USB-Kabel, D-Bus System',
-    services: ['HTTP Remote Console', 'MQTT', 'SSH (Port 22)', 'Modbus-TCP (Port 502)'],
+    firmwareVersion: NE,
+    firmwareStatus: 'Unbekannt',
+    lastChecked: LAST_CHECK,
+    hardwareSpecs: 'Raspberry Pi 3, MPPTs per VE.Direct, D-Bus, MQTT-Bridge (Keep-Alive alle 30 s)',
+    services: ['GUI v2 (http://venus.local/gui-v2)', 'MQTT', 'SSH', 'Modbus-TCP'],
     mqttTopics: [
-      'N/d4aa81/system/0/Dc/Battery/Soc',
-      'N/d4aa81/solarcharger/288/Pv/V',
-      'N/d4aa81/solarcharger/289/Pv/V'
+      `N/${VRM_ID}/system/0/Dc/Pv/Power`,
+      `N/${VRM_ID}/solarcharger/288/#`,
+      `N/${VRM_ID}/solarcharger/289/#`,
+      `N/${VRM_ID}/grid/#`,
+      `R/${VRM_ID}/keepalive`
     ],
     apiEndpoints: [
-      'http://192.168.0.111/app/',
-      'http://192.168.0.111:502'
+      'http://venus.local/gui-v2',
+      'http://192.168.0.111/'
     ],
-    location: 'Technikraum Keller / Schaltschrank Kleinverteiler',
+    location: NE,
     operatingLimits: [
-      { parameter: 'CPU Auslastung', value: '14', unit: '%', description: 'Ressourcenschonend' },
-      { parameter: 'RAM Nutzung', value: '342', unit: 'MB', description: 'von 1024 MB' }
+      { parameter: 'VRM Portal-ID', value: VRM_ID, unit: '', description: 'Basis aller N/<ID>/... Topics' },
+      { parameter: 'Solarcharger-Instanzen', value: '288, 289', unit: '', description: '2x SmartSolar MPPT 150/35' },
+      { parameter: 'Grid Meter', value: 'Shelly Pro 3EM', unit: '', description: 'VRM-Instanz 40' },
+      { parameter: 'PV-Inverter', value: 'HM-1500', unit: '', description: 'via venus.dbus-hoymiles' }
     ],
     isIstZustand: true,
-    notes: 'Verbindet die beiden Victron SmartSolar MPPTs und publisht alle PV- & Batteriedaten auf MQTT.'
+    notes: 'Monitoring und Logging fuer Grid, PV und MPPTs. Keine Regelung des T2SG. MAC aus der VRM-ID abgeleitet.'
   },
   {
     id: 'victron-mppt-1',
-    name: 'Victron SmartSolar MPPT 150/35 #1 (Ost)',
+    name: 'Victron SmartSolar MPPT 150/35 [288]',
     category: 'MPPT',
     vendor: 'Victron Energy',
     model: 'SmartSolar MPPT 150/35',
-    serialNumber: 'HQ2144ABCD1',
-    ip: '192.168.0.111', // via VenusOS USB
-    mac: '00:1B:C5:09:41:01',
-    hostname: 'mppt-east.venus',
+    serialNumber: NE,
+    ip: '192.168.0.111',
+    mac: '-',
+    hostname: 'via Venus OS',
     status: 'online',
-    firmwareVersion: 'v1.61',
-    firmwareStatus: 'Aktuell',
-    lastChecked: '2026-09-14 14:32:40',
-    hardwareSpecs: '150V Max PV, 35A Max Laderate, VE.Direct Port',
-    services: ['VE.Direct to USB', 'Bluetooth Smart'],
+    firmwareVersion: NE,
+    firmwareStatus: 'Unbekannt',
+    lastChecked: LAST_CHECK,
+    hardwareSpecs: '150 V max. PV-Leerlaufspannung, 35 A Ladestrom, VE.Direct',
+    services: ['VE.Direct -> Venus OS', 'Bluetooth (VictronConnect)'],
     mqttTopics: [
-      'N/d4aa81/solarcharger/288/Yield/Power',
-      'N/d4aa81/solarcharger/288/State',
-      'N/d4aa81/solarcharger/288/Dc/0/Current'
+      `N/${VRM_ID}/solarcharger/288/Yield/Power`,
+      `N/${VRM_ID}/solarcharger/288/Pv/V`,
+      `N/${VRM_ID}/solarcharger/288/Dc/0/Voltage`,
+      `N/${VRM_ID}/solarcharger/288/History/Daily/0/Yield`,
+      `N/${VRM_ID}/solarcharger/288/State`
     ],
     apiEndpoints: [],
-    location: 'Technikraum Wandmontage',
+    location: NE,
     operatingLimits: [
-      { parameter: 'Max PV Spannung', value: '150', unit: 'V', description: 'Voc Sicherheitsgrenze' },
+      { parameter: 'Max PV-Spannung', value: '150', unit: 'V', description: 'Voc inkl. Kaltreserve' },
       { parameter: 'Max Ladestrom', value: '35', unit: 'A', description: 'Batterieseitig' }
     ],
     isIstZustand: true,
-    notes: 'Angeschlossen an Ost-Feld (2x 410Wp Module in Serie).'
+    notes: 'DC-gekoppelt: laedt direkt den Akku, zaehlt nicht zum Hausverbrauch. Angeschlossene Module noch nicht erfasst.'
   },
   {
     id: 'victron-mppt-2',
-    name: 'Victron SmartSolar MPPT 150/35 #2 (West)',
+    name: 'Victron SmartSolar MPPT 150/35 [289]',
     category: 'MPPT',
     vendor: 'Victron Energy',
     model: 'SmartSolar MPPT 150/35',
-    serialNumber: 'HQ2144ABCD2',
+    serialNumber: NE,
     ip: '192.168.0.111',
-    mac: '00:1B:C5:09:41:02',
-    hostname: 'mppt-west.venus',
+    mac: '-',
+    hostname: 'via Venus OS',
     status: 'online',
-    firmwareVersion: 'v1.61',
-    firmwareStatus: 'Aktuell',
-    lastChecked: '2026-09-14 14:32:40',
-    hardwareSpecs: '150V Max PV, 35A Max Laderate, VE.Direct Port',
-    services: ['VE.Direct to USB', 'Bluetooth Smart'],
+    firmwareVersion: NE,
+    firmwareStatus: 'Unbekannt',
+    lastChecked: LAST_CHECK,
+    hardwareSpecs: '150 V max. PV-Leerlaufspannung, 35 A Ladestrom, VE.Direct',
+    services: ['VE.Direct -> Venus OS', 'Bluetooth (VictronConnect)'],
     mqttTopics: [
-      'N/d4aa81/solarcharger/289/Yield/Power',
-      'N/d4aa81/solarcharger/289/State',
-      'N/d4aa81/solarcharger/289/Dc/0/Current'
+      `N/${VRM_ID}/solarcharger/289/Yield/Power`,
+      `N/${VRM_ID}/solarcharger/289/Pv/V`,
+      `N/${VRM_ID}/solarcharger/289/Dc/0/Voltage`,
+      `N/${VRM_ID}/solarcharger/289/History/Daily/0/Yield`,
+      `N/${VRM_ID}/solarcharger/289/State`
     ],
     apiEndpoints: [],
-    location: 'Technikraum Wandmontage',
+    location: NE,
     operatingLimits: [
-      { parameter: 'Max PV Spannung', value: '150', unit: 'V', description: 'Voc Sicherheitsgrenze' },
+      { parameter: 'Max PV-Spannung', value: '150', unit: 'V', description: 'Voc inkl. Kaltreserve' },
       { parameter: 'Max Ladestrom', value: '35', unit: 'A', description: 'Batterieseitig' }
     ],
     isIstZustand: true,
-    notes: 'Angeschlossen an West-Feld (2x 410Wp Module in Serie).'
+    notes: 'DC-gekoppelt: laedt direkt den Akku, zaehlt nicht zum Hausverbrauch. Angeschlossene Module noch nicht erfasst.'
   },
   {
     id: 'proxmox-host',
-    name: 'Proxmox VE 8 Hypervisor Node (LXC Host)',
+    name: 'Proxmox VE Host',
     category: 'Infrastruktur',
     vendor: 'Proxmox Server Solutions',
-    model: 'Intel N100 Mini-PC (16GB DDR5, 512GB NVMe)',
-    serialNumber: 'PVE-MINI-01',
+    model: NE,
+    serialNumber: NE,
     ip: '192.168.0.200',
-    mac: 'e8:9c:25:31:aa:99',
-    hostname: 'pve-solar-node.lan',
+    mac: NE,
+    hostname: NE,
     status: 'online',
-    firmwareVersion: 'pve-manager/8.2.4',
-    firmwareStatus: 'Aktuell',
-    lastChecked: '2026-09-14 14:32:00',
-    hardwareSpecs: '4 Kerne @ 3.4GHz, 16GB RAM, 2.5 GbE LAN, 12W Idle Stromverbrauch',
+    firmwareVersion: NE,
+    firmwareStatus: 'Unbekannt',
+    lastChecked: LAST_CHECK,
+    hardwareSpecs: NE,
     services: ['HTTPS Web-UI (Port 8006)', 'SSH (Port 22)', 'Proxmox VE API'],
     mqttTopics: [],
     apiEndpoints: [
-      'https://192.168.0.200:8006/api2/json/nodes/pve/status'
+      'https://192.168.0.200:8006/'
     ],
-    location: '10" Serverschrank Flur',
-    operatingLimits: [
-      { parameter: 'Max Host Load', value: '80', unit: '%', description: 'Überwachungsgrenze' },
-      { parameter: 'RAM Auslastung', value: '4.2', unit: 'GB', description: 'von 16 GB belegt' }
-    ],
+    location: NE,
+    operatingLimits: [],
     isIstZustand: true,
-    notes: 'Hostet LXC Container für Mosquitto, InfluxDB, Grafana und die Solar-Lokal-App.'
+    notes: 'Hostet die LXC-Container fuer Mosquitto, Grafana, InfluxDB und die Solar-Lokal-App (Standard-IP 192.168.0.220).'
   },
   {
     id: 'mosquitto-broker',
-    name: 'Mosquitto MQTT Broker (ACL-Hardened)',
+    name: 'Mosquitto MQTT Broker (TLS + ACL)',
     category: 'Infrastruktur',
     vendor: 'Eclipse Mosquitto',
-    model: 'Mosquitto 2.0.18 on Debian 12 LXC',
-    serialNumber: 'CT-102-MQTT',
+    model: 'Mosquitto (LXC)',
+    serialNumber: NE,
     ip: '192.168.0.201',
-    mac: 'bc:24:11:80:44:01',
-    hostname: 'mqtt.solar.lan',
+    mac: NE,
+    hostname: NE,
     status: 'online',
-    firmwareVersion: 'v2.0.18',
-    firmwareStatus: 'Aktuell',
-    lastChecked: '2026-09-14 14:32:45',
-    hardwareSpecs: '1 Core, 512MB RAM, Alpine/Debian LXC (CT 102)',
-    services: ['MQTT (Port 1883)', 'MQTT over WebSockets (Port 9001)'],
+    firmwareVersion: NE,
+    firmwareStatus: 'Unbekannt',
+    lastChecked: LAST_CHECK,
+    hardwareSpecs: 'LXC auf Proxmox, OpenSSL-Zertifikate, ACL-basierte Topic-Rechte',
+    services: ['MQTTS (Port 8883, TLS)', 'MQTT (Port 1883, aktuell von der App genutzt)'],
     mqttTopics: [
-      '$SYS/broker/messages/received',
-      '$SYS/broker/clients/connected'
+      'venus/grid/shellypro/#',
+      'venus/pv/ahoydtu/#',
+      'T2SG/#',
+      `N/${VRM_ID}/#`
     ],
     apiEndpoints: [],
-    location: 'Proxmox CT 102',
+    location: 'Proxmox LXC',
     operatingLimits: [
-      { parameter: 'Max Verbindungen', value: '100', unit: 'Clients', description: 'ACL gesichert' },
-      { parameter: 'ACL Status', value: 'Enforced', unit: '', description: 'Keine anonymen Logins' }
+      { parameter: 'App-Benutzer', value: 'mqttapp', unit: '', description: 'Zugang der Solar-Lokal-App' },
+      { parameter: 'Anonymer Zugriff', value: 'Aus', unit: '', description: 'ACL-Hardening' }
     ],
     isIstZustand: true,
-    notes: 'Dedizierte User für shelly, ahoy, trucki, venus und grafana mit strikten Topic-ACLs.'
+    notes: 'TLS auf 8883 ist eingerichtet. Laut Integrationen-Screenshot vom 2026-10-20 verbindet sich die App noch ueber 1883.'
   },
   {
     id: 'grafana-dashboard',
-    name: 'Grafana Telemetrie Visualisierung',
+    name: 'Grafana',
     category: 'Infrastruktur',
     vendor: 'Grafana Labs',
-    model: 'Grafana Enterprise v11.1.0',
-    serialNumber: 'CT-103-GRAF',
+    model: 'Grafana (LXC)',
+    serialNumber: NE,
     ip: '192.168.0.202',
-    mac: 'bc:24:11:80:44:02',
-    hostname: 'grafana.solar.lan',
+    mac: NE,
+    hostname: NE,
     status: 'online',
-    firmwareVersion: 'v11.1.0',
-    firmwareStatus: 'Aktuell',
-    lastChecked: '2026-09-14 14:32:45',
-    hardwareSpecs: '2 Cores, 2GB RAM, Debian 12 LXC (CT 103)',
-    services: ['HTTP (Port 3000)', 'Grafana Dashboard API'],
+    firmwareVersion: NE,
+    firmwareStatus: 'Unbekannt',
+    lastChecked: LAST_CHECK,
+    hardwareSpecs: 'LXC auf Proxmox',
+    services: ['HTTP (Port 3000)'],
     mqttTopics: [],
     apiEndpoints: [
       'http://192.168.0.202:3000/api/health'
     ],
-    location: 'Proxmox CT 103',
+    location: 'Proxmox LXC',
     operatingLimits: [],
     isIstZustand: true,
-    notes: 'Beinhaltet Dashboards: "Solar Sci-Fi Master HUD", "Batterie-Zellendiagnose" und "Netz-Phasenschiefe".'
+    notes: 'Datenquelle: InfluxDB 192.168.0.203, Bucket "solar".'
   },
   {
     id: 'influxdb-time-series',
-    name: 'InfluxDB v2 Time-Series Engine',
+    name: 'InfluxDB 2.x',
     category: 'Infrastruktur',
     vendor: 'InfluxData',
-    model: 'InfluxDB v2.7.6',
-    serialNumber: 'CT-104-INFLUX',
+    model: 'InfluxDB 2.x (LXC)',
+    serialNumber: NE,
     ip: '192.168.0.203',
-    mac: 'bc:24:11:80:44:03',
-    hostname: 'influxdb.solar.lan',
+    mac: NE,
+    hostname: NE,
     status: 'online',
-    firmwareVersion: 'v2.7.6',
-    firmwareStatus: 'Aktuell',
-    lastChecked: '2026-09-14 14:32:45',
-    hardwareSpecs: '2 Cores, 4GB RAM, NVMe Storage für TSM-Engine, Bucket: "solar_home"',
-    services: ['HTTP REST (Port 8086)', 'Flux Engine'],
+    firmwareVersion: NE,
+    firmwareStatus: 'Unbekannt',
+    lastChecked: LAST_CHECK,
+    hardwareSpecs: 'LXC auf Proxmox, Organisation "Solar Lokal", Bucket "solar"',
+    services: ['HTTP REST (Port 8086)', 'Flux'],
     mqttTopics: [],
     apiEndpoints: [
       'http://192.168.0.203:8086/health'
     ],
-    location: 'Proxmox CT 104',
+    location: 'Proxmox LXC',
     operatingLimits: [
-      { parameter: 'Retention Policy', value: '365', unit: 'Tage', description: 'Hochauflösend (1s - 10s)' },
-      { parameter: 'Downsampling Bucket', value: 'Infinite', unit: '', description: 'Stundenmittelwerte unbegrenzt' }
+      { parameter: 'Organisation', value: 'Solar Lokal', unit: '', description: '' },
+      { parameter: 'Bucket', value: 'solar', unit: '', description: 'Schreibzugriff durch die Solar-Lokal-App' }
     ],
     isIstZustand: true,
-    notes: 'Speichert alle Telemetriedaten sekündlich ab. Telegraf schreibt MQTT-Topics direkt in Influx.'
+    notes: 'Wird von der Solar-Lokal-App beschrieben.'
   }
 ];
 
 export const INITIAL_NETWORK_HOSTS: NetworkHost[] = [
-  { ip: '192.168.0.100', port: 80, name: 'Shelly Pro 3EM (shellypro3em.local)', deviceCategory: 'Netz / Zähler', services: ['HTTP', 'MQTT', 'RPC', 'mDNS'], status: 'Online', latencyMs: 1.2, mac: '34:94:54:74:d9:0c' },
-  { ip: '192.168.0.101', port: 80, name: 'AhoyDTU (ahoy-dtu.local)', deviceCategory: 'PV Wechselrichter', services: ['HTTP', 'MQTT', 'REST API', 'mDNS'], status: 'Online', latencyMs: 4.8, mac: '24:6f:28:90:31:ec' },
-  { ip: '192.168.0.102', port: 80, name: 'Trucki 2 Shelly Gateway (trucki.local)', deviceCategory: 'Batterie / Inverter', services: ['HTTP (trucki.local)', 'MQTT', 'JSON Live', 'mDNS'], status: 'Online', latencyMs: 2.1, mac: 'a4:cf:12:87:66:b4' },
-  { ip: '192.168.0.103', port: 80, name: 'JK-BMS LiFePO4 Bridge (jkbms.local)', deviceCategory: 'Batteriemanagement', services: ['HTTP', 'MQTT', 'BLE'], status: 'Online', latencyMs: 3.4, mac: 'cc:50:e3:19:4a:22' },
-  { ip: '192.168.0.111', port: 80, name: 'Venus OS (venus.local)', deviceCategory: 'MPPT Steuerung', services: ['HTTP', 'MQTT', 'SSH:22', 'Modbus:502', 'mDNS'], status: 'Online', latencyMs: 1.6, mac: 'b8:27:eb:d4:aa:81' },
-  { ip: '192.168.0.200', port: 8006, name: 'Proxmox VE 8 Hypervisor', deviceCategory: 'Server Host', services: ['HTTPS', 'Web GUI', 'SSH:22'], status: 'Online', latencyMs: 0.4, mac: 'e8:9c:25:31:aa:99' },
-  { ip: '192.168.0.201', port: 1883, name: 'Mosquitto MQTT Broker', deviceCategory: 'MQTT Broker', services: ['MQTT:1883', 'WS:9001'], status: 'Online', latencyMs: 0.3, mac: 'bc:24:11:80:44:01' },
-  { ip: '192.168.0.202', port: 3000, name: 'Grafana Dashboard Node', deviceCategory: 'Visualisierung', services: ['HTTP:3000', 'API'], status: 'Online', latencyMs: 0.5, mac: 'bc:24:11:80:44:02' },
-  { ip: '192.168.0.203', port: 8086, name: 'InfluxDB v2 Zeitreihen-DB', deviceCategory: 'Datenbank', services: ['HTTP:8086', 'Flux API'], status: 'Online', latencyMs: 0.6, mac: 'bc:24:11:80:44:03' }
+  { ip: '192.168.0.100', port: 80, name: 'Shelly Pro 3EM', deviceCategory: 'Netz / Zaehler', services: ['HTTP', 'RPC', 'MQTT', 'WebSocket -> Venus'], status: 'Online', latencyMs: 1.2, mac: NE },
+  { ip: '192.168.0.101', port: 80, name: 'AhoyDTU (ahoydtu.local)', deviceCategory: 'PV Wechselrichter', services: ['HTTP', 'REST API', 'MQTT'], status: 'Online', latencyMs: 4.8, mac: NE },
+  { ip: '192.168.0.102', port: 80, name: 'Trucki2Shelly Gateway (trucki.local)', deviceCategory: 'Batterie / Inverter', services: ['HTTP', 'JSON Live', 'MQTT'], status: 'Online', latencyMs: 2.1, mac: NE },
+  { ip: '192.168.0.111', port: 80, name: 'Venus OS (venus.local)', deviceCategory: 'MPPT / Monitoring', services: ['HTTP', 'MQTT', 'SSH', 'Modbus-TCP'], status: 'Online', latencyMs: 1.6, mac: 'b8:27:eb:79:32:1c' },
+  { ip: '192.168.0.200', port: 8006, name: 'Proxmox VE Host', deviceCategory: 'Server Host', services: ['HTTPS', 'Web GUI', 'SSH'], status: 'Online', latencyMs: 0.4, mac: NE },
+  { ip: '192.168.0.201', port: 8883, name: 'Mosquitto MQTT Broker', deviceCategory: 'MQTT Broker', services: ['MQTTS:8883', 'MQTT:1883'], status: 'Online', latencyMs: 0.3, mac: NE },
+  { ip: '192.168.0.202', port: 3000, name: 'Grafana', deviceCategory: 'Visualisierung', services: ['HTTP:3000'], status: 'Online', latencyMs: 0.5, mac: NE },
+  { ip: '192.168.0.203', port: 8086, name: 'InfluxDB 2.x', deviceCategory: 'Datenbank', services: ['HTTP:8086', 'Flux'], status: 'Online', latencyMs: 0.6, mac: NE },
+  { ip: '192.168.0.220', port: 80, name: 'Solar-Lokal-App (LXC)', deviceCategory: 'Anwendung', services: ['HTTP'], status: 'Online', latencyMs: 0.5, mac: NE }
 ];
 
 export const INITIAL_DISCOVERED_DEVICE: DiscoveredDevice = {
@@ -571,7 +597,7 @@ export const INITIAL_MQTT_TOPICS: MqttTopicDoc[] = [
       unit: 'V'
     },
     fields: [
-      { field: 'value', type: 'number', unit: 'V', example: 52.84, description: 'Gemessene DC-Batteriespannung am Eingang des Lumentree Inverters (Cutoff 48V, Reboot 52V)' }
+      { field: 'value', type: 'number', unit: 'V', example: 52.84, description: 'Gemessene DC-Batteriespannung am Eingang des Lumentree Inverters (Cutoff 47.0 V, Reboot 51.8 V)' }
     ]
   },
   {
@@ -683,29 +709,17 @@ export const INITIAL_MQTT_TOPICS: MqttTopicDoc[] = [
     ]
   },
   {
-    topic: 'venus/battery/lifepo4/soc',
+    topic: `N/${VRM_ID}/solarcharger/288/Dc/0/Voltage`,
     dataType: 'JSON Object',
-    source: 'JK-BMS ESP Bridge via VenusOS',
-    frequency: '~2.0 s',
+    source: 'Venus OS (192.168.0.111) / MPPT 150/35 [288]',
+    frequency: '~1.0 s (Keep-Alive alle 30 s)',
     lastSeen: 'Gerade eben',
-    consumers: ['Solar-Lokal Core', 'Trucki Gateway', 'InfluxDB'],
+    consumers: ['Solar-Lokal Core', 'InfluxDB'],
     samplePayload: {
-      soc: 78,
-      voltage: 52.81,
-      current: -11.4,
-      power: -602.0,
-      delta_cell_v: 0.005,
-      min_cell_v: 3.301,
-      max_cell_v: 3.306,
-      temp_bms: 23.4,
-      health: 99.4
+      value: 53.45
     },
     fields: [
-      { field: 'soc', type: 'number', unit: '%', example: 78, description: 'State of Charge der LiFePO4 Batterie' },
-      { field: 'voltage', type: 'number', unit: 'V', example: 52.81, description: 'Gesamtspannung der 16 Zellen' },
-      { field: 'current', type: 'number', unit: 'A', example: -11.4, description: 'Batteriestrom (>0 laden, <0 entladen)' },
-      { field: 'delta_cell_v', type: 'number', unit: 'V', example: 0.005, description: 'Maximale Spannungsdifferenz zwischen den Zellen (Drift)' },
-      { field: 'temp_bms', type: 'number', unit: '°C', example: 23.4, description: 'Temperatur des BMS & Sensorpacks' }
+      { field: 'value', type: 'number', unit: 'V', example: 53.45, description: 'Batteriespannung am MPPT-Ausgang. Ohne Batteriemonitor die beste verfuegbare Spannungsquelle (SOC wird nicht gemessen).' }
     ]
   }
 ];
@@ -726,7 +740,7 @@ export const INITIAL_API_DOCS: ApiDoc[] = [
       title: 'Trucki2Shelly Gateway v1.15',
       uptime: '14d 06:22:15',
       zepc: 'Enabled (1)',
-      inverter: 'SUN-2000G2 RS485 Connected'
+      inverter: 'SUN-G2 RS485 Connected'
     }
   },
   {
@@ -776,7 +790,7 @@ export const INITIAL_API_DOCS: ApiDoc[] = [
   },
   {
     endpoint: '/rpc/EM.GetStatus?id=0',
-    baseUrl: 'http://shellypro3em.local (192.168.0.100)',
+    baseUrl: 'http://192.168.0.100',
     method: 'GET',
     responseFormat: 'application/json',
     lastSuccessfulAccess: 'Vor 0.9s',

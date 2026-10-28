@@ -309,7 +309,7 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
       safetyNotes: [
         'Anzugsmoment für alle M8 Bolzen an Akkupolen und Wechselrichter strikt auf 9 bis 11 Nm einstellen! Lockere Kontakte führen bei Dauerströmen von 25A zu Brandgefahr!',
         'Vor dem ersten Einschalten zwingend Vorwiderstand (z. B. 47Ω 5W Leistungswiderstand) zum Vorladen der internen Inverter-Kondensatoren verwenden (Pre-Charge gegen Funkenschlag).',
-        'VBat Cutoff im Trucki Gateway stets auf mindestens 48.0V (3.00 V/Zelle) konfigurieren, um Tiefentladung der LiFePO4-Zellen auszuschließen.'
+        'VBat Cutoff im Trucki Gateway nicht unter 47.0 V (2.94 V/Zelle, aktuelle Einstellung) konfigurieren, um Tiefentladung der LiFePO4-Zellen auszuschließen.'
       ]
     },
     {
@@ -704,7 +704,7 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
               <strong className="text-sky-300 font-semibold block text-sm mb-1">
                 Erklärung & Referenzdokumentation (Hersteller-Handbücher):
               </strong>
-              Die hinterlegten Handbücher und Leitfäden (Trucki T2SG v1.15, Lumentree SUN-2000, Power Queen 25.6V 100Ah, Victron Wiring Unlimited) dienen <span className="underline decoration-sky-400 font-semibold">ausschließlich zur technischen Erklärung</span>, Parameter-Herleitung, Register-Dokumentation und normgerechten Auslegung. Die Steuerung und Live-Auslesung der Anlage erfolgt unabhängig und direkt über die jeweiligen Netzwerkschnittstellen (z.B. <code className="px-1.5 py-0.5 rounded bg-sky-900/60 font-mono-code text-cyan-300 font-bold">http://trucki.local</code>, Shelly Pro 3EM, AhoyDTU).
+              Die hinterlegten Handbücher und Leitfäden (Trucki T2SG v1.15, Lumentree SUN-G2, Power Queen 25.6V 100Ah, Victron Wiring Unlimited) dienen <span className="underline decoration-sky-400 font-semibold">ausschließlich zur technischen Erklärung</span>, Parameter-Herleitung, Register-Dokumentation und normgerechten Auslegung. Die Steuerung und Live-Auslesung der Anlage erfolgt unabhängig und direkt über die jeweiligen Netzwerkschnittstellen (z.B. <code className="px-1.5 py-0.5 rounded bg-sky-900/60 font-mono-code text-cyan-300 font-bold">http://trucki.local</code>, Shelly Pro 3EM, AhoyDTU).
             </div>
           </div>
 
@@ -1216,9 +1216,9 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
                     severity: 'Schutzabschaltung (LiFePO4 Tiefentladeschutz)',
                     badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
                     description: 'Die DC-Batteriespannung ist unter die konfigurierte Grenzspannung (VBat Cutoff) gefallen. Der Inverter stoppt die Stromentnahme.',
-                    trigger: 'DC-Klemmen am Inverter messen eine Spannung unterhalb VBat Cutoff (z. B. < 48.0 V bei 16S LiFePO4).',
+                    trigger: 'DC-Klemmen am Inverter messen eine Spannung unterhalb VBat Cutoff (hier < 47.0 V bei 16S LiFePO4).',
                     behavior: 'Inverter geht in Standby. Stromaufnahme sinkt auf Ruhestrom (< 0.5 W), um Tiefentladung der Batteriezellen zu verhindern.',
-                    remedy: '1. Normaler Betriebszustand bei entladenem Akku – kein Fehler!\n2. Das System wartet, bis PV-Module den Akku wieder auf VBat Reboot (z. B. 52.0 V) aufgeladen haben.\n3. Überprüfen, ob die VBat Cutoff Schwelle im T2SG zur Batterie passt (empfohlen 48.0V bei 16S, niemals unter 44V einstellen!).',
+                    remedy: '1. Normaler Betriebszustand bei entladenem Akku – kein Fehler!\n2. Das System wartet, bis PV-Module den Akku wieder auf VBat Reboot (hier 51.8 V) aufgeladen haben.\n3. Überprüfen, ob die VBat Cutoff Schwelle im T2SG zur Batterie passt (aktuell 47.0 V bei 16S, niemals unter 44 V einstellen).',
                     handbuchQuote: 'Handbuch S. 14: "Der Inverter schützt die Batterie vor Schäden durch Tiefentladung. Die Abschaltung erfolgt exakt bei Erreichen der konfigurierten Abschaltschwelle."'
                   },
                   {
