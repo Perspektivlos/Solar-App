@@ -1205,7 +1205,7 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
                     severity: 'Kritischer Not-Stop',
                     badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
                     description: 'Die Kühlkörper-Innentemperatur hat den Sicherheitsschwellenwert von 75 °C überschritten. Der Inverter unterbricht sofort die Einspeisung.',
-                    trigger: 'Messwert der internen NTC-Sensoren > 75 °C (publiziert über T2SG/TEMPERATURE).',
+                    trigger: 'Messwert der internen NTC-Sensoren > 75 °C (publiziert über TRUCKI/TEMPERATURE).',
                     behavior: 'Inverter schaltet die MOSFET-Endstufe aus. Lüfter laufen auf 100% Volllast zur forcierten Abkühlung.',
                     remedy: '1. Lüftungsschlitze auf Staub prüfen und freiblasen.\n2. Mindestabstand von 15 cm zu Wänden und Decken kontrollieren.\n3. Bei hohen Sommertemperaturen Zusatzlüfter im Technikraum aktivieren.\n4. Automatische Reaktivierung erfolgt sobald die Temperatur unter 65 °C sinkt.',
                     handbuchQuote: 'Handbuch S. 20: "Wenn die Temperatur 75 °C erreicht, schaltet das Gerät ab. Nach dem Abkühlen auf 65 °C schaltet sich das Gerät automatisch wieder ein."'
@@ -1435,7 +1435,7 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
                   <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 text-xs">
                     <h4 className="font-bold text-white mb-2 flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-cyan-400" />
-                      T2SG v1.15 ZEPC Steuerungs-Zustände (Topic T2SG/ZEPC)
+                      T2SG v1.15 ZEPC Steuerungs-Zustände (Topic TRUCKI/ZEPC)
                     </h4>
                     <div className="space-y-2 font-mono-code text-[11px]">
                       <div className="p-2 rounded bg-slate-900/70 border border-slate-800 flex justify-between items-center">

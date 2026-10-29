@@ -241,7 +241,7 @@ export const SystemReportGenerator: React.FC<SystemReportGeneratorProps> = ({
       evaluatedCriteria: [
         { label: 'RS485 Bus-Kommunikation stabil', passed: true, value: '9600 Baud 8N1 OK' },
         { label: 'Zero-Export Loop (ZEPC)', passed: true, value: telemetry.truckiZeroExportEnabled ? 'Aktiviert (Auto-Modus 1)' : 'Manuell' },
-        { label: 'Telemetrie-Spannung T2SG/VBAT', passed: true, value: `${telemetry.batteryVoltage.toFixed(2)} V gemessen` }
+        { label: 'Telemetrie-Spannung TRUCKI/VBAT', passed: true, value: `${telemetry.batteryVoltage.toFixed(2)} V gemessen` }
       ],
       recommendation: 'RS485-Verbindung zwischen T2SG und Lumentree Inverter mit verdrilltem Adernpaar (Twisted Pair) geschützt verlegen.',
       manualRef: 'Trucki2Shelly Gateway Dokumentation v1.15 (Modbus RS485 9600-8N1, Befehlssatz ZEPC)'
@@ -902,11 +902,11 @@ topic read venus/pv/ahoydtu/+/cmd/#
 # 3. Trucki 2 Shelly Gateway (Liest Shelly Grid & schreibt T2SG Status)
 user trucki_gateway
 topic read venus/grid/shellypro/#
-topic write T2SG/#
-topic read T2SG/ACSETPOINTOVR
-topic read T2SG/METEROVR
-topic read T2SG/ZEPCOVR
-topic read T2SG/REBOOTOVR
+topic write TRUCKI/#
+topic read TRUCKI/ACSETPOINTOVR
+topic read TRUCKI/METEROVR
+topic read TRUCKI/ZEPCOVR
+topic read TRUCKI/REBOOTOVR
 
 # 4. Venus OS (Victron MPPTs)
 user victron_venus
@@ -917,7 +917,7 @@ topic read R/b827eb79321c/#
 # 5. Solar-Lokal-App Core (Lesezugriff auf alles, Schreibzugriff auf Steuerung)
 user solar_app
 topic read #
-topic write T2SG/#
+topic write TRUCKI/#
 topic write venus/pv/ahoydtu/+/cmd/#
 `;
 

@@ -759,13 +759,13 @@ topic write venus/pv/ahoydtu/+/cmd/#
             {/* Slider Control */}
             <div className="p-4 rounded-xl bg-slate-900/40 border border-white/[0.06] space-y-3">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-300 font-medium">Sun-2000 Power-Limit (0 - 1800W):</span>
+                <span className="text-slate-300 font-medium">SUN-2000G2-H Power-Limit (0 - 2000W):</span>
                 <span className="font-mono-code text-amber-400 font-bold text-sm">{truckiInput} W</span>
               </div>
               <input
                 type="range"
                 min="0"
-                max="1800"
+                max="2000"
                 step="50"
                 value={truckiInput}
                 onChange={(e) => {
@@ -779,7 +779,7 @@ topic write venus/pv/ahoydtu/+/cmd/#
                 <span>0 W (Aus)</span>
                 <span>600 W (Balkonkraftwerk)</span>
                 <span>1000 W</span>
-                <span>1800 W (Max Dauerlast)</span>
+                <span>2000 W (Max Dauerlast)</span>
               </div>
             </div>
 

@@ -11,11 +11,11 @@ Die Anlage kombiniert AC- und DC-gekoppelte Solarkomponenten für maximale Autar
 
 | Komponente | Rolle & Funktion | Schnittstelle / Hostname | Protokoll |
 | :--- | :--- | :--- | :--- |
-| **Hoymiles HM-1500** | 1500W AC-Direkterzeugung (4 Modul-Eingänge) | `http://ahoy-dtu.local` (192.168.0.101) | AhoyDTU REST API / MQTT |
+| **Hoymiles HM-1500** | 1500W AC-Direkterzeugung (4 Modul-Eingänge) | `http://ahoydtu.local` (192.168.0.101) | AhoyDTU REST API / MQTT |
 | **Victron SmartSolar MPPT (2x)** | DC-Ladung der 48V Batterie (VRM 288 / 289) | `http://venus.local` (192.168.0.111) | Venus OS D-Bus / MQTT |
-| **Trucki2Shelly Gateway (T2SG)** | Dynamische Nulleinspeisung (ZEPC) & RS485-DAC | `http://trucki.local` (192.168.0.102) | REST / MQTT (`T2SG/*`) |
-| **48V LiFePO4 Speicher (15.4 kWh)** | 6x Power Queen 25.6V 100Ah (3P2S) | Venus OS & Trucki Gateway | D-Bus / RS485 VBAT |
-| **Shelly Pro 3EM** | 3-Phasen Phasenbezug- & Einspeisemessung | `http://shellypro3em.local` (192.168.0.100) | Gen2 RPC / MQTT |
+| **Trucki2Shelly Gateway (T2SG) + Lumentree SUN-2000G2-H** | Dynamische Nulleinspeisung (ZEPC), max. 2000 W AC | `http://trucki.local` (192.168.0.102) | REST `/jsonlive` / MQTT (`TRUCKI/*`) |
+| **48V LiFePO4 Speicher (15.4 kWh)** | 6x Power Queen 25.6V 100Ah (2S3P, 51.2 V 300 Ah) | Venus OS (MPPT) & Trucki Gateway | MQTT / VBAT |
+| **Shelly Pro 3EM** | 3-Phasen Phasenbezug- & Einspeisemessung | `http://192.168.0.100` | Gen2 RPC / MQTT |
 | **Proxmox VE Node** | LXC Host für MQTT, InfluxDB, Grafana (.202) & App | `192.168.0.200` (Port 8006) | HTTPS / Systemd |
 
 ---
@@ -33,22 +33,22 @@ Die Anlage kombiniert AC- und DC-gekoppelte Solarkomponenten für maximale Autar
 ### 2. ⚡ Full-Stack Express Backend & LAN-Telemetrie
 - Integrierter Node.js/Express-Dienst auf Port 3000 (`server.ts`).
 - **Hybride Datenerfassung:**
-  - Pollt direkt die lokalen LAN-Endpunkte (`shellypro3em.local`, `ahoy-dtu.local`, `trucki.local`, `venus.local`).
-  - Schnelle Timeout-Absicherung (800ms) verhindert Blockaden bei schlechter WLAN-Verbindung oder Nachtabschaltung der DTU.
-  - Automatischer, nahtloser Failover auf realistische Simulation mit visueller Statusanzeige (`● LAN Live` vs. `○ Lokale Simulation`).
+  - Pollt per HTTP Shelly (`192.168.0.100/rpc/EM.GetStatus`), AhoyDTU (`ahoydtu.local/api/inverter/id/0`) und Trucki (`trucki.local/jsonlive`); Victron MPPTs (288/289) und `TRUCKI/#` kommen per MQTT ueber Mosquitto `192.168.0.201:8883` (TLS) inkl. Venus-Keep-Alive.
+  - Timeout-Absicherung (1,5 s je Abfrage) verhindert Blockaden bei schlechter WLAN-Verbindung oder Nachtabschaltung der DTU.
+  - Failover je Quelle: Nur Quellen ohne frische Daten (< 15 s) werden simuliert. Statusanzeige `LAN Live` / `LAN teilweise` / `Backend REST`.
 - **REST-Endpunkte:**
   - `GET /api/telemetry/live`: Aggregierte Telemetrie aller 4 Systemteile.
-  - `GET /api/health/hosts`: Echtzeit-Verbindungsstatus & Latenz für Proxmox, MQTT, InfluxDB, AhoyDTU, Shelly und Trucki.
-  - `POST /api/control/limit`: Sichere Sollwert-Vorgabe an Inverter & Nulleinspeise-Limiter.
+  - `GET /api/health/hosts`: Echte TCP-Pruefung (Proxmox, MQTT 8883, Grafana, InfluxDB, AhoyDTU, Shelly, Trucki, Venus OS), keine Zufallslatenzen.
+  - `POST /api/control/limit`: Leistungsgrenze 0-2000 W, wird als `TRUCKI/MAXPOWEROVR` an den T2SG gesendet.
 
 ### 3. 📡 MQTT & Schnittstellen-Suite
 - **Live MQTT-Sniffer & Diagnose-Terminal:**
-  - Schnelle Filterung nach `ahoy/#`, `venus/#`, `T2SG/#`, `shellypro3em/#`.
+  - Schnelle Filterung nach `ahoy/#`, `venus/#`, `TRUCKI/#`, `shellypro3em/#`.
   - Auto-Scroll, Log-Export (JSON/TXT) und Farbcodierung nach Payload-Typ.
 - **Vollständige Topic-Referenz:**
   - AhoyDTU Kanaldaten (`ch0/P_AC`, `ch1/P_DC` bis `ch4/P_DC`).
-  - Venus OS D-Bus Werte (`solarcharger/Yield/Power`, `Dc/Battery/Soc`).
-  - Trucki T2SG Topics (`T2SG/ACDISPLAY`, `T2SG/ACSETPOINT`, `T2SG/VBAT`, `T2SG/ZEPC`).
+  - Venus OS D-Bus Werte (`solarcharger/Yield/Power`, `Dc/0/Voltage`).
+  - Trucki T2SG Topics (`TRUCKI/ACDISPLAY`, `TRUCKI/ACSETPOINT`, `TRUCKI/VBAT`, `TRUCKI/ZEPC`; Prefix = Geraetename im T2SG).
 
 ### 4. 🔧 Wartung, Handbücher & Hardware-Diagnose
 - **Integrierte Handbuch-Bibliothek:**
