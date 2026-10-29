@@ -108,18 +108,19 @@ ok "Frontend gebaut: $APP_DIR/dist"
 say "5/7 .env pruefen"
 if [ ! -f .env ]; then
   cp .env.example .env
-  warn ".env aus .env.example angelegt -> MQTT_PASSWORD und MQTT_CA_FILE eintragen!"
+  warn ".env aus .env.example angelegt -> MQTT_PASSWORD eintragen!"
 fi
 grep -q '^PORT=' .env || echo 'PORT=3000' >> .env
 if ! grep -q '^MQTT_URL=' .env; then
   cat >> .env <<'ENVEOF'
 
-# --- Solar-Lokal Backend: Mosquitto mit TLS + ACL (ergaenzt von update_solar_app.sh)
-MQTT_URL="mqtts://192.168.0.201:8883"
+# --- Solar-Lokal Backend: Mosquitto ohne TLS, Login + ACL (ergaenzt von update_solar_app.sh)
+MQTT_URL="mqtt://192.168.0.201:1883"
 MQTT_USERNAME="mqttapp"
 MQTT_PASSWORD=""
-MQTT_CA_FILE="/etc/solar-app/ca.crt"
-MQTT_REJECT_UNAUTHORIZED=true
+# Nur fuer TLS (MQTT_URL="mqtts://192.168.0.201:8883"):
+# MQTT_CA_FILE="/etc/solar-app/ca.crt"
+# MQTT_REJECT_UNAUTHORIZED=true
 ENVEOF
   warn "MQTT-Block in .env ergaenzt"
 fi
@@ -135,7 +136,7 @@ if grep -q '^MQTT_PASSWORD=""' .env || ! grep -q '^MQTT_PASSWORD=' .env; then
   fi
 fi
 CA=$(grep -E '^MQTT_CA_FILE=' .env | cut -d= -f2- | tr -d '"' || true)
-if [ -n "${CA:-}" ] && [ ! -f "$CA" ]; then
+if grep -qE '^MQTT_URL="?mqtts://' .env && [ -n "${CA:-}" ] && [ ! -f "$CA" ]; then
   warn "MQTT_CA_FILE=$CA existiert nicht. CA-Zertifikat vom Broker (.201) hierher kopieren."
 fi
 

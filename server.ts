@@ -165,8 +165,9 @@ const TRUCKI_PREFIX_DEFAULT = process.env.TRUCKI_TOPIC_PREFIX || 'TRUCKI';
 const DEFAULT_MQTT_CONFIG: MqttServerConfig = {
   enabled: true,
   host: '192.168.0.201',
-  port: 8883,
-  tls: true,
+  // Broker .201 laeuft ohne TLS (Klartext im LAN, Login + ACL). TLS optional per mqtts:// / tls: true
+  port: 1883,
+  tls: false,
   caFile: '',
   rejectUnauthorized: true,
   username: 'mqttapp',
@@ -498,7 +499,7 @@ function applyVenusMqtt(instance: number, field: string, raw: string): boolean {
 }
 
 // ==============================================================================
-// MQTT-Client (Mosquitto .201, TLS 8883)
+// MQTT-Client (Mosquitto .201, Port 1883 ohne TLS; TLS optional)
 // ==============================================================================
 let mqttClient: MqttClient | null = null;
 let keepaliveTimer: ReturnType<typeof setInterval> | null = null;
