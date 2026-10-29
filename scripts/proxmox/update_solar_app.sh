@@ -29,7 +29,7 @@ die()  { printf '\033[31m[x] %s\033[0m\n' "$*" >&2; exit 1; }
 command -v git >/dev/null || { apt-get update -qq && apt-get install -y -qq git; }
 cd "$APP_DIR"
 
-say "1/6 Sicherung von Konfiguration"
+say "1/7 Sicherung von Konfiguration"
 BACKUP="/root/solar-lokal-backup-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP"
 for f in .env hardware-config.json mqtt-config.json; do
@@ -39,7 +39,7 @@ cp -a "$UNIT" "$BACKUP/" 2>/dev/null || true
 cp -a "$NGINX_SITE" "$BACKUP/" 2>/dev/null || true
 ok "Sicherung in $BACKUP"
 
-say "2/6 Git-Stand aktualisieren ($BRANCH)"
+say "2/7 Git-Stand aktualisieren ($BRANCH)"
 git ls-remote --heads "$REPO_URL" "$BRANCH" >/dev/null 2>&1 || die "GitHub nicht erreichbar ($REPO_URL). DNS/Gateway im CT pruefen: ping -c1 github.com"
 if [ ! -d .git ]; then
   # Installation per rsync (ohne .git): in einen Git-Checkout umwandeln.
@@ -65,14 +65,47 @@ git checkout --quiet "$BRANCH"
 git merge --ff-only --quiet "origin/$BRANCH" || die "Kein Fast-Forward moeglich. Bitte manuell pruefen (git log / git status)."
 ok "Code auf $(git rev-parse --short HEAD)"
 
-say "3/6 Abhaengigkeiten und Build"
+say "3/7 Node.js pruefen"
+# Vite 6, Tailwind 4, vite-plugin-pwa 2 und @google/genai brauchen Node.js >= 20.
+# Debian 12 liefert 18.x -> offizielles Node.js 22 LTS von nodejs.org nach /usr/local
+# (ohne fremde APT-Quelle, mit SHA256-Pruefung).
+NODE_MIN=20
+node_major() { local v; v=$(node -v 2>/dev/null | sed 's/^v//; s/\..*//'); echo "${v:-0}"; }
+if [ "$(node_major)" -lt "$NODE_MIN" ]; then
+  warn "Node.js $(node -v 2>/dev/null || echo fehlt) ist zu alt -> installiere Node.js 22 LTS"
+  case "$(uname -m)" in
+    x86_64) NARCH=x64 ;;
+    aarch64) NARCH=arm64 ;;
+    *) die "Architektur $(uname -m) nicht unterstuetzt" ;;
+  esac
+  BASE="https://nodejs.org/dist/latest-v22.x"
+  TMPD=$(mktemp -d)
+  curl -fsSL "$BASE/SHASUMS256.txt" -o "$TMPD/SHASUMS256.txt"
+  TARBALL=$(grep -oE "node-v22\.[0-9]+\.[0-9]+-linux-${NARCH}\.tar\.xz" "$TMPD/SHASUMS256.txt" | head -1)
+  [ -n "$TARBALL" ] || die "Node-22-Paket nicht gefunden"
+  curl -fsSL "$BASE/$TARBALL" -o "$TMPD/$TARBALL"
+  (cd "$TMPD" && grep " $TARBALL\$" SHASUMS256.txt | sha256sum -c -) || die "Pruefsumme von $TARBALL falsch"
+  command -v xz >/dev/null || { apt-get update -qq && apt-get install -y -qq xz-utils; }
+  tar -xJf "$TMPD/$TARBALL" -C /usr/local --strip-components=1 --no-same-owner
+  rm -rf "$TMPD"
+  hash -r
+  export PATH="/usr/local/bin:$PATH"
+  [ "$(node_major)" -ge "$NODE_MIN" ] || die "Node.js-Update fehlgeschlagen ($(node -v))"
+  ok "Node.js $(node -v), npm $(npm -v) unter /usr/local"
+  # native Module (Tailwind oxide, esbuild, rollup) fuer neue Node-Version neu holen
+  rm -rf node_modules
+else
+  ok "Node.js $(node -v)"
+fi
+
+say "4/7 Abhaengigkeiten und Build"
 # tsx (Backend-Start) ist eine devDependency -> dev-Pakete mitinstallieren
 NODE_ENV=development npm install --no-audit --no-fund --include=dev
 npm install --no-audit --no-fund --no-save @tailwindcss/oxide-linux-x64-gnu >/dev/null 2>&1 || true
 npm run build
 ok "Frontend gebaut: $APP_DIR/dist"
 
-say "4/6 .env pruefen"
+say "5/7 .env pruefen"
 if [ ! -f .env ]; then
   cp .env.example .env
   warn ".env aus .env.example angelegt -> MQTT_PASSWORD und MQTT_CA_FILE eintragen!"
@@ -106,7 +139,7 @@ if [ -n "${CA:-}" ] && [ ! -f "$CA" ]; then
   warn "MQTT_CA_FILE=$CA existiert nicht. CA-Zertifikat vom Broker (.201) hierher kopieren."
 fi
 
-say "5/6 systemd und Nginx korrigieren"
+say "6/7 systemd und Nginx korrigieren"
 if [ -f "$UNIT" ]; then
   NPM_BIN=$(command -v npm) || die "npm nicht gefunden (Node.js installiert?)"
   if ! grep -qx "ExecStart=$NPM_BIN start" "$UNIT"; then
@@ -129,7 +162,7 @@ systemctl restart "$SERVICE"
 systemctl reload nginx
 ok "Dienste neu gestartet"
 
-say "6/6 Funktionspruefung"
+say "7/7 Funktionspruefung"
 for i in $(seq 1 20); do
   curl -fs -o /dev/null http://127.0.0.1:3000/api/system/info && break
   sleep 1
