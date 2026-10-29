@@ -192,6 +192,31 @@ export const SystemReportGenerator: React.FC<SystemReportGeneratorProps> = ({
   const recommendedFuseA = Math.ceil(maxInverterCurrent * 1.25); // ~58A -> 60A / 80A
 
   // ---------------------------------------------------------------------------
+  // SICHERE TELEMETRIE-FALLBACKS (VERHINDERT UNCAUGHT TYPEERROR BEI LEEREN DATEN)
+  // ---------------------------------------------------------------------------
+  const safeGridFrequency = (telemetry?.gridPhases && telemetry.gridPhases[0]?.frequency) 
+    ? Number(telemetry.gridPhases[0].frequency) 
+    : 50.0;
+  const safePhaseL1 = telemetry?.gridPhases?.[0]?.activePower ?? 0;
+  const safePhaseL2 = telemetry?.gridPhases?.[1]?.activePower ?? 0;
+  const safePhaseL3 = telemetry?.gridPhases?.[2]?.activePower ?? 0;
+  const safeGridTotal = telemetry?.gridTotalWatts ?? 0;
+  const safeBatteryVoltage = typeof telemetry?.batteryVoltage === 'number' ? telemetry.batteryVoltage : 0;
+  const safeBatteryWatts = typeof telemetry?.batteryWatts === 'number' ? telemetry.batteryWatts : 0;
+  const safeBatterySoc = typeof telemetry?.batterySocPercent === 'number' ? telemetry.batterySocPercent : 0;
+  const safePvHoymilesWatts = typeof telemetry?.pvHoymilesWatts === 'number' ? telemetry.pvHoymilesWatts : 0;
+  const safePvVictronMppt1Watts = typeof telemetry?.pvVictronMppt1Watts === 'number' ? telemetry.pvVictronMppt1Watts : 0;
+  const safePvVictronMppt2Watts = typeof telemetry?.pvVictronMppt2Watts === 'number' ? telemetry.pvVictronMppt2Watts : 0;
+  const safePvTotalWatts = typeof telemetry?.pvTotalWatts === 'number' ? telemetry.pvTotalWatts : (safePvHoymilesWatts + safePvVictronMppt1Watts + safePvVictronMppt2Watts);
+  const safeTruckiActualOutputWatts = typeof telemetry?.truckiActualOutputWatts === 'number' ? telemetry.truckiActualOutputWatts : 0;
+  const safeTruckiPowerLimitWatts = typeof telemetry?.truckiPowerLimitWatts === 'number' ? telemetry.truckiPowerLimitWatts : 600;
+  const safeHoymilesLimitPercent = typeof telemetry?.hoymilesLimitPercent === 'number' ? telemetry.hoymilesLimitPercent : 100;
+  const safeHoymilesLimitWatts = typeof telemetry?.hoymilesLimitWatts === 'number' ? telemetry.hoymilesLimitWatts : 1500;
+  const safeHoymilesTempC = typeof telemetry?.hoymilesTempC === 'number' ? telemetry.hoymilesTempC : 0;
+  const safeHouseTotalWatts = typeof telemetry?.houseTotalWatts === 'number' ? telemetry.houseTotalWatts : 0;
+  const safeAutarkyPercent = typeof telemetry?.autarkyPercent === 'number' ? telemetry.autarkyPercent : 0;
+
+  // ---------------------------------------------------------------------------
   // 11-KOMPONENTEN PRÜFMATRIX MIT AMPELLOGIK & ECHTZEIT-AUDIT
   // ---------------------------------------------------------------------------
   const componentAudits: ComponentAuditItem[] = [
@@ -202,12 +227,12 @@ export const SystemReportGenerator: React.FC<SystemReportGeneratorProps> = ({
       endpoint: '192.168.0.100 (Gen2 RPC / WebSocket)',
       status: 'ok',
       statusLabel: 'Nominal Bestanden',
-      liveMetric: `${telemetry.gridTotalWatts} W (L1: ${telemetry.gridPhaseL1Watts}W · L2: ${telemetry.gridPhaseL2Watts}W · L3: ${telemetry.gridPhaseL3Watts}W)`,
+      liveMetric: `${safeGridTotal} W (L1: ${safePhaseL1}W · L2: ${safePhaseL2}W · L3: ${safePhaseL3}W)`,
       targetTolerance: 'Latenz < 10 ms · Abfragezyklus 1.0 s · Vorzeichen: + Bezug / - Einspeisung',
       evaluatedCriteria: [
         { label: 'LAN-Erreichbarkeit (Ping)', passed: true, value: '1.2 ms' },
         { label: 'Outbound WebSocket -> Venus OS', passed: true, value: 'Aktiv (Port 58354)' },
-        { label: '3-Phasen-Wandlersaldierung', passed: true, value: `${telemetry.gridFrequencyHz.toFixed(2)} Hz · Summe: ${telemetry.gridTotalWatts} W` }
+        { label: '3-Phasen-Wandlersaldierung', passed: true, value: `${safeGridFrequency.toFixed(2)} Hz · Summe: ${safeGridTotal} W` }
       ],
       recommendation: 'Reguläre Zählerdrift-Kalibrierung alle 6 Monate durchführen. Phasenrichtigen Sitz der Stromwandler L1/L2/L3 sicherstellen.',
       manualRef: 'Shelly Pro 3EM User Guide Rev 2.1 (Abschnitt 4: Gen2 RPC & WebSocket Handshake)'
@@ -219,12 +244,12 @@ export const SystemReportGenerator: React.FC<SystemReportGeneratorProps> = ({
       endpoint: '192.168.0.101 (ahoydtu.local / REST)',
       status: 'ok',
       statusLabel: 'Nominal Bestanden',
-      liveMetric: `${telemetry.pvHoymilesWatts} W Erzeugung · Limit: ${telemetry.hoymilesLimitPercent}% (${telemetry.hoymilesLimitWatts} W)`,
+      liveMetric: `${safePvHoymilesWatts} W Erzeugung · Limit: ${safeHoymilesLimitPercent}% (${safeHoymilesLimitWatts} W)`,
       targetTolerance: 'NRF24 Paketverlust < 5% · DC-Spannung 16–60 V · Startspannung 22 V',
       evaluatedCriteria: [
         { label: 'REST API /api/live erreichbar', passed: true, value: '200 OK (4.8 ms)' },
         { label: 'Inverter-ID 0 Kommunikation', passed: true, value: 'Aktiv (NRF24+)' },
-        { label: 'Gehäusetemperatur im Normbereich', passed: true, value: `${telemetry.hoymilesTempC}°C (< 65°C Derating)` }
+        { label: 'Gehäusetemperatur im Normbereich', passed: true, value: `${safeHoymilesTempC}°C (< 65°C Derating)` }
       ],
       recommendation: 'Bei Sommertemperaturen für ausreichende Hinterlüftung des HM-1500 Gehäuses sorgen (thermischer Derating-Start bei 65°C).',
       manualRef: 'Hoymiles HM-1500 Technical Datasheet (MPPT 36–48 V, max. 60 V DC, Wirkungsgrad 96.7%)'
@@ -236,12 +261,12 @@ export const SystemReportGenerator: React.FC<SystemReportGeneratorProps> = ({
       endpoint: '192.168.0.102 (trucki.local / JSON live)',
       status: 'ok',
       statusLabel: 'Regelschleife Aktiv',
-      liveMetric: `Ist-Einspeisung: ${telemetry.truckiActualOutputWatts} W · Limit: ${telemetry.truckiPowerLimitWatts} W`,
+      liveMetric: `Ist-Einspeisung: ${safeTruckiActualOutputWatts} W · Limit: ${safeTruckiPowerLimitWatts} W`,
       targetTolerance: 'Regelzyklus ~1.3 s · Nulleinspeisung Totband ±30 W · Cutoff 47.0 V',
       evaluatedCriteria: [
         { label: 'RS485 Bus-Kommunikation stabil', passed: true, value: '9600 Baud 8N1 OK' },
-        { label: 'Zero-Export Loop (ZEPC)', passed: true, value: telemetry.truckiZeroExportEnabled ? 'Aktiviert (Auto-Modus 1)' : 'Manuell' },
-        { label: 'Telemetrie-Spannung TRUCKI/VBAT', passed: true, value: `${telemetry.batteryVoltage.toFixed(2)} V gemessen` }
+        { label: 'Zero-Export Loop (ZEPC)', passed: true, value: Boolean(telemetry?.truckiZeroExportEnabled) ? 'Aktiviert (Auto-Modus 1)' : 'Manuell' },
+        { label: 'Telemetrie-Spannung TRUCKI/VBAT', passed: true, value: `${safeBatteryVoltage.toFixed(2)} V gemessen` }
       ],
       recommendation: 'RS485-Verbindung zwischen T2SG und Lumentree Inverter mit verdrilltem Adernpaar (Twisted Pair) geschützt verlegen.',
       manualRef: 'Trucki2Shelly Gateway Dokumentation v1.15 (Modbus RS485 9600-8N1, Befehlssatz ZEPC)'
@@ -253,10 +278,10 @@ export const SystemReportGenerator: React.FC<SystemReportGeneratorProps> = ({
       endpoint: 'RS485 Verbindung an T2SG Gateway',
       status: 'ok',
       statusLabel: 'Einspeisung Bereit',
-      liveMetric: `Ausgangsleistung: ${telemetry.truckiActualOutputWatts} W · DC-Strom: ${(telemetry.truckiActualOutputWatts / 50).toFixed(1)} A`,
+      liveMetric: `Ausgangsleistung: ${safeTruckiActualOutputWatts} W · DC-Strom: ${(safeTruckiActualOutputWatts / 50).toFixed(1)} A`,
       targetTolerance: 'DC-Eingang 45–90 V · Nennleistung 2000 W · Wirkungsgrad > 92%',
       evaluatedCriteria: [
-        { label: 'Eingangsspannung über Cutoff', passed: true, value: `${telemetry.batteryVoltage.toFixed(1)} V (> 47.0 V Cutoff)` },
+        { label: 'Eingangsspannung über Cutoff', passed: true, value: `${safeBatteryVoltage.toFixed(1)} V (> 47.0 V Cutoff)` },
         { label: 'AC-Netzsynchronisation', passed: true, value: '50 Hz netzsynchron' },
         { label: 'Thermische Belastung', passed: true, value: 'Normal (Lüfter temperaturgesteuert)' }
       ],
@@ -268,12 +293,12 @@ export const SystemReportGenerator: React.FC<SystemReportGeneratorProps> = ({
       name: '5. LiFePO4 Speicherbank (48V / 15.36 kWh)',
       category: 'Energiespeicher (3P2S Verbund)',
       endpoint: 'Spannungsgeführt via MPPTs & T2SG (kein Netzwerk-BMS)',
-      status: telemetry.batteryVoltage < 47.5 ? 'warning' : 'ok',
-      statusLabel: telemetry.batteryVoltage < 47.5 ? 'Grenzbereich' : 'Spannungsgeführt Aktiv',
-      liveMetric: `${telemetry.batteryVoltage.toFixed(2)} V (${telemetry.batterySocPercent}%) · Nettofluss: ${telemetry.batteryWatts} W`,
+      status: safeBatteryVoltage > 0 && safeBatteryVoltage < 47.5 ? 'warning' : 'ok',
+      statusLabel: safeBatteryVoltage > 0 && safeBatteryVoltage < 47.5 ? 'Grenzbereich' : 'Spannungsgeführt Aktiv',
+      liveMetric: `${safeBatteryVoltage.toFixed(2)} V (${safeBatterySoc}%) · Nettofluss: ${safeBatteryWatts} W`,
       targetTolerance: 'Cutoff: 47.0 V · Reboot: 51.8 V · Float: 54.4 V · Absorpt.: 56.8 V',
       evaluatedCriteria: [
-        { label: 'Spannung über Not-Stop Schwelle', passed: telemetry.batteryVoltage >= 47.0, value: `${telemetry.batteryVoltage.toFixed(2)} V` },
+        { label: 'Spannung über Not-Stop Schwelle', passed: safeBatteryVoltage === 0 || safeBatteryVoltage >= 47.0, value: `${safeBatteryVoltage.toFixed(2)} V` },
         { label: 'Schmelzsicherung dimensioniert', passed: true, value: '60A Mega-Fuse vor Inverter' },
         { label: 'Kein Zellendrift-Alarm', passed: true, value: 'Verbund symmetrisch' }
       ],
@@ -287,11 +312,11 @@ export const SystemReportGenerator: React.FC<SystemReportGeneratorProps> = ({
       endpoint: 'VE.Direct Port an Venus OS (192.168.0.111)',
       status: 'ok',
       statusLabel: 'MPPT Tracking Aktiv',
-      liveMetric: `${telemetry.pvVictronMppt1Watts} W Erzeugung · String 1`,
+      liveMetric: `${safePvVictronMppt1Watts} W Erzeugung · String 1`,
       targetTolerance: 'PV-Spannung > VBat + 5V (Start) · Max PV 150 V · Ladestrom max 35 A',
       evaluatedCriteria: [
         { label: 'VE.Direct serielle Verbindung', passed: true, value: 'D-Bus com.victronenergy.solarcharger.ttyUSB0' },
-        { label: 'Batteriespannungs-Messung', passed: true, value: `${telemetry.batteryVoltage.toFixed(2)} V synchron` },
+        { label: 'Batteriespannungs-Messung', passed: true, value: `${safeBatteryVoltage.toFixed(2)} V synchron` },
         { label: 'Ladestrom-Regelung', passed: true, value: 'Bulk / Float Regelkreis aktiv' }
       ],
       recommendation: 'Sicherstellen, dass PV-Leerlaufspannung Voc bei -10°C unter 145 V verbleibt (Sicherheitsabstand zu 150 V Überspannungsgrenze).',
@@ -304,11 +329,11 @@ export const SystemReportGenerator: React.FC<SystemReportGeneratorProps> = ({
       endpoint: 'VE.Direct Port an Venus OS (192.168.0.111)',
       status: 'ok',
       statusLabel: 'MPPT Tracking Aktiv',
-      liveMetric: `${telemetry.pvVictronMppt2Watts} W Erzeugung · String 2`,
+      liveMetric: `${safePvVictronMppt2Watts} W Erzeugung · String 2`,
       targetTolerance: 'PV-Spannung > VBat + 5V (Start) · Max PV 150 V · Ladestrom max 35 A',
       evaluatedCriteria: [
         { label: 'VE.Direct serielle Verbindung', passed: true, value: 'D-Bus com.victronenergy.solarcharger.ttyUSB1' },
-        { label: 'Batteriespannungs-Messung', passed: true, value: `${telemetry.batteryVoltage.toFixed(2)} V synchron` },
+        { label: 'Batteriespannungs-Messung', passed: true, value: `${safeBatteryVoltage.toFixed(2)} V synchron` },
         { label: 'String-Leistungssymmetrie', passed: true, value: 'Ertragsdaten plausibel' }
       ],
       recommendation: 'String-Vergleich mit MPPT #1 auf ungleiche Verschattung oder Modulalterung hin überwachen.',
@@ -462,7 +487,7 @@ export const SystemReportGenerator: React.FC<SystemReportGeneratorProps> = ({
       category: 'Telemetrie',
       label: '9. Shelly 3-Phasen-Saldierung & Frequenz',
       status: 'ok',
-      detail: `Shelly Pro 3EM Phasen L1/L2/L3 Wirkleistung saldiert & Frequenz im Toleranzband (${telemetry.gridFrequencyHz.toFixed(2)} Hz).`,
+      detail: `Shelly Pro 3EM Phasen L1/L2/L3 Wirkleistung saldiert & Frequenz im Toleranzband (${safeGridFrequency.toFixed(2)} Hz).`,
       remedy: 'Wandlerklemmen-Polung (+/-) und Phasenfolge L1-L2-L3 zyklisch überprüfen.'
     },
     {
@@ -470,7 +495,7 @@ export const SystemReportGenerator: React.FC<SystemReportGeneratorProps> = ({
       category: 'Telemetrie',
       label: '10. AhoyDTU Polling & HM-1500 Datenstrom',
       status: 'ok',
-      detail: `AhoyDTU REST- & MQTT-Strom aktiv (~5 s Zyklus), HM-1500 Wirkungsgrad > 96 % (${telemetry.pvHoymilesWatts} W).`,
+      detail: `AhoyDTU REST- & MQTT-Strom aktiv (~5 s Zyklus), HM-1500 Wirkungsgrad > 96 % (${safePvHoymilesWatts} W).`,
       remedy: 'NRF24 Antennenposition bei Funkabrissen im 2.4 GHz Band optimieren.'
     },
     {
@@ -478,7 +503,7 @@ export const SystemReportGenerator: React.FC<SystemReportGeneratorProps> = ({
       category: 'Telemetrie',
       label: '11. Victron MPPT Spannungs-Symmetrie',
       status: 'ok',
-      detail: `MPPT 150/35 #1 (${telemetry.pvVictronMppt1Watts} W) und #2 (${telemetry.pvVictronMppt2Watts} W) arbeiten synchron im optimalen DC-Fenster.`,
+      detail: `MPPT 150/35 #1 (${safePvVictronMppt1Watts} W) und #2 (${safePvVictronMppt2Watts} W) arbeiten synchron im optimalen DC-Fenster.`,
       remedy: 'PV-Leerlaufspannungen der Strings auf Abweichungen prüfen.'
     },
     {
@@ -503,8 +528,8 @@ export const SystemReportGenerator: React.FC<SystemReportGeneratorProps> = ({
       id: 'reg-2',
       category: 'Regelung & Batterie',
       label: '14. LiFePO4 Tiefentladeschutz & Spannungsfenster',
-      status: telemetry.batteryVoltage < 47.5 ? 'warning' : 'ok',
-      detail: `Spannungsgeführtes Not-Stop-System aktiv (Cutoff: 47.0 V, Reboot: 51.8 V). Aktuelle Spannung: ${telemetry.batteryVoltage.toFixed(2)} V.`,
+      status: safeBatteryVoltage > 0 && safeBatteryVoltage < 47.5 ? 'warning' : 'ok',
+      detail: `Spannungsgeführtes Not-Stop-System aktiv (Cutoff: 47.0 V, Reboot: 51.8 V). Aktuelle Spannung: ${safeBatteryVoltage.toFixed(2)} V.`,
       remedy: 'Cutoff-Schwelle im Inverter und T2SG niemals unter 47.0 V absenken, um BMS-Abschaltung zu verhindern.'
     },
     {
@@ -936,11 +961,11 @@ topic write venus/pv/ahoydtu/+/cmd/#
 ---
 
 ## 1. Anlagenübersicht & Live-Status
-- **PV Erzeugung gesamt:** ${telemetry.pvTotalWatts} W (Hoymiles: ${telemetry.pvHoymilesWatts} W, Victron MPPT 1+2: ${telemetry.pvVictronMppt1Watts + telemetry.pvVictronMppt2Watts} W)
+- **PV Erzeugung gesamt:** ${safePvTotalWatts} W (Hoymiles: ${safePvHoymilesWatts} W, Victron MPPT 1+2: ${safePvVictronMppt1Watts + safePvVictronMppt2Watts} W)
 - **Batteriespeicher:** 48V (51.2V) LiFePO4 Speicher (6x Power Queen 25.6V 100Ah in 3P2S = 15.36 kWh)
-  - Spannung: ${telemetry.batteryVoltage.toFixed(2)} V | SoC: ${telemetry.batterySocPercent} % | Leistung: ${telemetry.batteryWatts} W
-- **Netzbezug / Einspeisung (Shelly Pro 3EM):** ${telemetry.gridTotalWatts} W (saldiert über L1/L2/L3)
-- **Hausverbrauch:** ${telemetry.houseTotalWatts} W | **Autarkiegrad:** ${telemetry.autarkyPercent} %
+  - Spannung: ${safeBatteryVoltage.toFixed(2)} V | SoC: ${safeBatterySoc} % | Leistung: ${safeBatteryWatts} W
+- **Netzbezug / Einspeisung (Shelly Pro 3EM):** ${safeGridTotal} W (saldiert über L1/L2/L3)
+- **Hausverbrauch:** ${safeHouseTotalWatts} W | **Autarkiegrad:** ${safeAutarkyPercent} %
 
 ---
 
@@ -980,7 +1005,7 @@ ${plausibilityChecks.map(p => `- **${p.label}** [${p.category}]: ${p.status.toUp
 ## 5. IP-Plan & Netzwerkdienste (Subnetz 192.168.0.0/24)
 | IP | Port | Hostname / Gerät | Dienste | Status | Latenz |
 |---|---|---|---|---|---|
-${hosts.map(h => `| ${h.ip} | ${h.port || '—'} | ${h.name} | ${h.services.join(', ')} | ${h.status} | ${h.latencyMs} ms |`).join('\n')}
+${(hosts || []).map(h => `| ${h.ip} | ${h.port || '—'} | ${h.name} | ${Array.isArray(h.services) ? h.services.join(', ') : (h.services || '—')} | ${h.status} | ${h.latencyMs ?? '—'} ms |`).join('\n')}
 
 ---
 
@@ -1878,19 +1903,19 @@ ${REPORT_VERSIONS.map(v => `| ${v.version} | ${v.date} | ${v.title} | ${v.status
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3 rounded-lg bg-slate-900/40 border border-white/[0.06]">
               <span className="text-[10px] text-slate-500 block">PV ERZEUGUNG:</span>
-              <span className="text-base font-bold text-amber-400 tabular-nums">{telemetry.pvTotalWatts} W</span>
+              <span className="text-base font-bold text-amber-400 tabular-nums">{safePvTotalWatts} W</span>
             </div>
             <div className="p-3 rounded-lg bg-slate-900/40 border border-white/[0.06]">
               <span className="text-[10px] text-slate-500 block">BATTERIE ENTLEERUNG:</span>
-              <span className="text-base font-bold text-emerald-400 tabular-nums">{Math.abs(telemetry.batteryWatts)} W ({telemetry.batterySocPercent}%)</span>
+              <span className="text-base font-bold text-emerald-400 tabular-nums">{Math.abs(safeBatteryWatts)} W ({safeBatterySoc}%)</span>
             </div>
             <div className="p-3 rounded-lg bg-slate-900/40 border border-white/[0.06]">
               <span className="text-[10px] text-slate-500 block">NETZBEZUG (SALDIERT):</span>
-              <span className="text-base font-bold text-violet-400 tabular-nums">{telemetry.gridTotalWatts} W</span>
+              <span className="text-base font-bold text-violet-400 tabular-nums">{safeGridTotal} W</span>
             </div>
             <div className="p-3 rounded-lg bg-slate-900/40 border border-white/[0.06]">
               <span className="text-[10px] text-slate-500 block">HAUSVERBRAUCH:</span>
-              <span className="text-base font-bold text-sky-400 tabular-nums">{telemetry.houseTotalWatts} W</span>
+              <span className="text-base font-bold text-sky-400 tabular-nums">{safeHouseTotalWatts} W</span>
             </div>
           </div>
         </div>
@@ -1943,12 +1968,12 @@ ${REPORT_VERSIONS.map(v => `| ${v.version} | ${v.date} | ${v.title} | ${v.status
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.06] text-slate-300 text-[11px]">
-                {hosts.map((h, i) => (
+                {(hosts || []).map((h, i) => (
                   <tr key={i} className="hover:bg-white/[0.02]">
                     <td className="p-2.5 text-sky-300 font-bold">{h.ip}</td>
                     <td className="p-2.5 text-amber-400">{h.port || '—'}</td>
                     <td className="p-2.5">{h.name}</td>
-                    <td className="p-2.5 text-slate-400">{h.services.join(', ')}</td>
+                    <td className="p-2.5 text-slate-400">{Array.isArray(h.services) ? h.services.join(', ') : (h.services || '—')}</td>
                     <td className="p-2.5 text-emerald-400">{h.status}</td>
                   </tr>
                 ))}

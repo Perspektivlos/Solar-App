@@ -61,7 +61,9 @@ export const DeviceBadge: React.FC<DeviceBadgeProps> = ({ deviceInfo, onClick })
       )}
 
       {wakeLockActive && (
-        <Sun className="w-3 h-3 text-amber-400 animate-pulse ml-0.5" title="Kiosk Display Wachgehalten" />
+        <span title="Kiosk Display Wachgehalten">
+          <Sun className="w-3 h-3 text-amber-400 animate-pulse ml-0.5" />
+        </span>
       )}
 
       {isBackground && (

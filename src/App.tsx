@@ -37,6 +37,7 @@ import { MqttApiDocs } from './components/MqttApiDocs';
 import { ControlAndScripts } from './components/ControlAndScripts';
 import { AuditAndMaintenance } from './components/AuditAndMaintenance';
 import { SystemReportGenerator } from './components/SystemReportGenerator';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { EnergyAnalytics } from './components/EnergyAnalytics';
 import { PWASetupInfoModal } from './components/PWASetupInfoModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
@@ -657,15 +658,17 @@ export default function App() {
 
         {/* TAB 8: ANLAGENBERICHT */}
         {activeTab === 'report' && (
-          <SystemReportGenerator
-            telemetry={telemetry}
-            devices={devices}
-            hosts={hosts}
-            mqttTopics={mqttTopics}
-            apiDocs={apiDocs}
-            changeLog={changeLog}
-            maintenanceLog={maintenanceLog}
-          />
+          <ErrorBoundary fallbackTitle="Anlagenbericht konnte nicht geladen werden">
+            <SystemReportGenerator
+              telemetry={telemetry}
+              devices={devices}
+              hosts={hosts}
+              mqttTopics={mqttTopics}
+              apiDocs={apiDocs}
+              changeLog={changeLog}
+              maintenanceLog={maintenanceLog}
+            />
+          </ErrorBoundary>
         )}
 
       </main>

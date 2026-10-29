@@ -57,6 +57,10 @@ export interface SolarTelemetry {
   truckiActualOutputWatts: number;
   truckiZeroExportEnabled: boolean;
   truckiStatus: 'NORMAL' | 'STANDBY' | 'LIMITING' | 'FAULT';
+  truckiTargetGridWatts?: number;
+  truckiTargetWatts?: number;
+  truckiBridgeDacVoltage?: number;
+  zeroExportActive?: boolean;
 
   // Hausverbrauch
   houseTotalWatts: number;
