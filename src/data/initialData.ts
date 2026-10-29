@@ -378,7 +378,7 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
   },
   {
     id: 'mosquitto-broker',
-    name: 'Mosquitto MQTT Broker (TLS + ACL)',
+    name: 'Mosquitto MQTT Broker (ACL, ohne TLS)',
     category: 'Infrastruktur',
     vendor: 'Eclipse Mosquitto',
     model: 'Mosquitto (LXC)',
@@ -391,7 +391,7 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
     firmwareStatus: 'Unbekannt',
     lastChecked: LAST_CHECK,
     hardwareSpecs: 'LXC auf Proxmox, OpenSSL-Zertifikate, ACL-basierte Topic-Rechte',
-    services: ['MQTTS (Port 8883, TLS)', 'MQTT (Port 1883, aktuell von der App genutzt)'],
+    services: ['MQTT (Port 1883, ohne TLS)'],
     mqttTopics: [
       'venus/grid/shellypro/#',
       'venus/pv/ahoydtu/#',
@@ -405,7 +405,7 @@ export const INITIAL_DEVICES: DeviceInventoryItem[] = [
       { parameter: 'Anonymer Zugriff', value: 'Aus', unit: '', description: 'ACL-Hardening' }
     ],
     isIstZustand: true,
-    notes: 'TLS auf 8883 ist eingerichtet. Laut Integrationen-Screenshot vom 2026-10-20 verbindet sich die App noch ueber 1883.'
+    notes: 'Broker laeuft ohne TLS auf 1883 (Stand 2026-10-29): Zugangsdaten gehen im LAN im Klartext, Schutz ueber Login und ACL. Port 8883 ist nicht aktiv.'
   },
   {
     id: 'grafana-dashboard',
@@ -468,7 +468,7 @@ export const INITIAL_NETWORK_HOSTS: NetworkHost[] = [
   { ip: '192.168.0.102', port: 80, name: 'Trucki2Shelly Gateway (trucki.local)', deviceCategory: 'Batterie / Inverter', services: ['HTTP', 'JSON Live', 'MQTT'], status: 'Online', latencyMs: 2.1, mac: NE },
   { ip: '192.168.0.111', port: 80, name: 'Venus OS (venus.local)', deviceCategory: 'MPPT / Monitoring', services: ['HTTP', 'MQTT', 'SSH', 'Modbus-TCP'], status: 'Online', latencyMs: 1.6, mac: 'b8:27:eb:79:32:1c' },
   { ip: '192.168.0.200', port: 8006, name: 'Proxmox VE Host', deviceCategory: 'Server Host', services: ['HTTPS', 'Web GUI', 'SSH'], status: 'Online', latencyMs: 0.4, mac: NE },
-  { ip: '192.168.0.201', port: 8883, name: 'Mosquitto MQTT Broker', deviceCategory: 'MQTT Broker', services: ['MQTTS:8883', 'MQTT:1883'], status: 'Online', latencyMs: 0.3, mac: NE },
+  { ip: '192.168.0.201', port: 1883, name: 'Mosquitto MQTT Broker', deviceCategory: 'MQTT Broker', services: ['MQTT:1883'], status: 'Online', latencyMs: 0.3, mac: NE },
   { ip: '192.168.0.202', port: 3000, name: 'Grafana', deviceCategory: 'Visualisierung', services: ['HTTP:3000'], status: 'Online', latencyMs: 0.5, mac: NE },
   { ip: '192.168.0.203', port: 8086, name: 'InfluxDB 2.x', deviceCategory: 'Datenbank', services: ['HTTP:8086', 'Flux'], status: 'Online', latencyMs: 0.6, mac: NE },
   { ip: '192.168.0.222', port: 80, name: 'Solar-App (LXC)', deviceCategory: 'Anwendung', services: ['HTTP'], status: 'Online', latencyMs: 0.5, mac: NE }

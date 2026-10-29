@@ -33,12 +33,12 @@ Die Anlage kombiniert AC- und DC-gekoppelte Solarkomponenten für maximale Autar
 ### 2. ⚡ Full-Stack Express Backend & LAN-Telemetrie
 - Integrierter Node.js/Express-Dienst auf Port 3000 (`server.ts`).
 - **Hybride Datenerfassung:**
-  - Pollt per HTTP Shelly (`192.168.0.100/rpc/EM.GetStatus`), AhoyDTU (`ahoydtu.local/api/inverter/id/0`) und Trucki (`trucki.local/jsonlive`); Victron MPPTs (288/289) und `TRUCKI/#` kommen per MQTT ueber Mosquitto `192.168.0.201:8883` (TLS) inkl. Venus-Keep-Alive.
+  - Pollt per HTTP Shelly (`192.168.0.100/rpc/EM.GetStatus`), AhoyDTU (`ahoydtu.local/api/inverter/id/0`) und Trucki (`trucki.local/jsonlive`); Victron MPPTs (288/289) und `TRUCKI/#` kommen per MQTT ueber Mosquitto `192.168.0.201:1883` (ohne TLS) inkl. Venus-Keep-Alive.
   - Timeout-Absicherung (1,5 s je Abfrage) verhindert Blockaden bei schlechter WLAN-Verbindung oder Nachtabschaltung der DTU.
   - Failover je Quelle: Nur Quellen ohne frische Daten (< 15 s) werden simuliert. Statusanzeige `LAN Live` / `LAN teilweise` / `Backend REST`.
 - **REST-Endpunkte:**
   - `GET /api/telemetry/live`: Aggregierte Telemetrie aller 4 Systemteile.
-  - `GET /api/health/hosts`: Echte TCP-Pruefung (Proxmox, MQTT 8883, Grafana, InfluxDB, AhoyDTU, Shelly, Trucki, Venus OS), keine Zufallslatenzen.
+  - `GET /api/health/hosts`: Echte TCP-Pruefung (Proxmox, MQTT 1883, Grafana, InfluxDB, AhoyDTU, Shelly, Trucki, Venus OS), keine Zufallslatenzen.
   - `POST /api/control/limit`: Leistungsgrenze 0-2000 W, wird als `TRUCKI/MAXPOWEROVR` an den T2SG gesendet.
 
 ### 3. 📡 MQTT & Schnittstellen-Suite
