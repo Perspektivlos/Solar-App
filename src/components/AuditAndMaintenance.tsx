@@ -41,7 +41,7 @@ interface ManualDoc {
   date: string;
   fileUrl: string;
   isLocalAsset: boolean;
-  category: 'gateway' | 'inverter' | 'battery' | 'mppt' | 'meter';
+  category: 'gateway' | 'inverter' | 'battery' | 'mppt' | 'meter' | 'vrm';
   badgeColor: string;
   tags: { label: string; value: string; color?: string }[];
   description: string;
@@ -186,39 +186,103 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
       ]
     },
     {
-      id: 'manual-victron-mppt',
-      title: 'Victron SmartSolar MPPT 100/20 & 150/35',
-      subtitle: 'Solarladeregler mit VE.Direct Bus & Bluetooth',
-      version: 'BlueSolar & SmartSolar',
-      date: 'Herstellerdokumentation',
-      fileUrl: '#',
-      isLocalAsset: false,
-      category: 'mppt',
-      badgeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-      description: 'Ultra-schnelles Maximum Power Point Tracking (MPPT), VE.Direct Textprotokoll, HEX-Befehle und D-Bus-Integration in Victron VenusOS.',
+      id: 'manual-shelly-pro3em',
+      title: 'Shelly Pro 3EM Hersteller-Technikbuch',
+      subtitle: 'Geräte- und Integrationsdokumentation (Modell SPEM-003CEBEU)',
+      version: 'SPEM-003CEBEU',
+      date: '30.10.2026 (10 S.)',
+      fileUrl: '/assets/aistudio/Technikbuch_Shelly_Pro_3EM_31be311b.pdf',
+      isLocalAsset: true,
+      category: 'meter',
+      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      description: 'Offizielles Hersteller-Technikbuch zum Shelly Pro 3EM Drehstrom-Messgerät. Dokumentiert Vierquadrantenmessung, DIN-Schienenmontage, 120A Klappwandler (CTA, CTB, CTC, CTN), 30 VA No-load-Schwelle, Phasenfolge-Erkennung (A-B-C), Gen2 RPC / WebSocket, anlagenseitiges MQTT-Topic-Präfix "venus/grid/shellypro/#", SNTP/Echtzeituhr-Pufferung und genaue Anschlussschemata.',
       tags: [
-        { label: 'Bus-Protokoll', value: 'VE.Direct (19200 Baud)' },
-        { label: 'Ladekennlinie', value: 'LiFePO4 Adaptiv' },
-        { label: 'Absorption', value: '56.8 V' },
-        { label: 'Float', value: '54.0 V' }
+        { label: 'Gerätemodell', value: 'SPEM-003CEBEU' },
+        { label: 'Messgenauigkeit', value: 'Klasse B (±1%)' },
+        { label: 'No-Load Schwelle', value: '30 VA je Kanal' },
+        { label: 'Klappwandler', value: '3x 120A (CTA/B/C/N)' },
+        { label: 'Lokale IP', value: '192.168.0.100' },
+        { label: 'MQTT-Topic', value: 'venus/grid/shellypro/#' }
       ]
     },
     {
-      id: 'manual-shelly-pro3em',
-      title: 'Shelly Pro 3EM Drehstrom-Messgerät',
-      subtitle: 'Hutschienen-Energiezähler mit 3x 120A Wandlern & LAN',
-      version: 'Pro Gen2 v1.4',
-      date: 'Allterco Robotics',
-      fileUrl: '#',
-      isLocalAsset: false,
-      category: 'meter',
-      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-      description: 'Echtzeit-Phasenmessung (L1, L2, L3), bidirektionale Energiemessung saldierend, lokale RPC-JSON API über Port 80 und mDNS/MQTT Telemetrie.',
+      id: 'manual-victron-mppt-full',
+      title: 'Victron SmartSolar MPPT 150/35 & 150/45 Handbuch',
+      subtitle: 'Offizielles Betriebshandbuch: Ladealgorithmen, Drehschalter, VE.Smart & Fehlercodes',
+      version: 'Rev 13 - 10/2026 (72 S.)',
+      date: 'Victron Energy B.V.',
+      fileUrl: '/assets/aistudio/Handbuch_-_Smartsolar_MPPT_150-35_-de_e505feab.pdf',
+      isLocalAsset: true,
+      category: 'mppt',
+      badgeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+      description: 'Vollständiges 72-seitiges Herstellerhandbuch für Victron SmartSolar MPPT 150/35 und 150/45. Enthält Drehschalter-Belegungen (Position 7 für LiFePO4: 56.8V Absorption, 54.0V Float), adaptive Konstantspannungszeiten, Schweifstrom-Abschaltung (2A), VE.Direct TX/RX-Port Konfiguration (PWM-Lichtdimmung / virtueller Lastausgang), VE.Smart-Networking, Fehlercodes (Err 1 bis Err 119) und die Prozedur zum Zurücksetzen des selbsthaltenden PV-Kurzschlussrelais.',
       tags: [
-        { label: 'Phasen', value: '3-Phasig saldierend' },
-        { label: 'RPC Endpoint', value: '/rpc/EM.GetStatus' },
-        { label: 'Abtastrate', value: '200 ms intern' },
-        { label: 'Schnittstelle', value: 'LAN / WLAN' }
+        { label: 'Drehschalter Pos. 7', value: 'LiFePO4 (56.8V / 54.0V)' },
+        { label: 'Max. PV Voc', value: '150V (145V Einschalten)' },
+        { label: 'Nennladestrom', value: '35 A (48V: 2000W)' },
+        { label: 'Startbedingung', value: 'Vbat + 5V (Weiterlauf: +1V)' },
+        { label: 'VE.Direct Port', value: '19200 Baud / TX-PWM' },
+        { label: 'Fehlercode-Katalog', value: 'Err 1 bis Err 119' }
+      ]
+    },
+    {
+      id: 'manual-victron-mppt-datasheet',
+      title: 'Victron SmartSolar MPPT 150/35 & 150/45 Datenblatt',
+      subtitle: 'Spezifikationen, Wirkungsgradkurven & Anschlussdaten',
+      version: 'Technisches Datenblatt',
+      date: 'Victron Energy B.V.',
+      fileUrl: '/assets/aistudio/Victron_Datasheet-SmartSolar-MPPT-150-35-_-150-45-DE_eded8050.pdf',
+      isLocalAsset: true,
+      category: 'mppt',
+      badgeColor: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+      description: 'Offizielles 1-seitiges Kompakt-Datenblatt für SmartSolar MPPT 150/35 & 150/45. Dokumentiert 98% Spitzenwirkungsgrad, Null-Volt-Wiederherstellung für tiefentladene LiFePO4-Batterien mit interner Trennung, 46-Tage interne Trendwert-Speicherung, 16 mm² / AWG6 Schraubklemmen, IP43/IP22 Schutzklasse und 2000 W PV-Nennleistung bei 48V (150/35).',
+      tags: [
+        { label: 'Wirkungsgrad', value: 'Über 98 %' },
+        { label: 'Nennleistung 48V', value: '2000 W (150/35) / 2600 W' },
+        { label: 'Trendspeicher', value: '46 Tage intern' },
+        { label: 'Stromanschlüsse', value: '16 mm² / AWG6' },
+        { label: 'Betriebstemperatur', value: '-30 °C bis +60 °C' },
+        { label: 'Eigenverbrauch', value: '10 mA @ 48V' }
+      ]
+    },
+    {
+      id: 'manual-victron-overview',
+      title: 'Victron BlueSolar & SmartSolar MPPT Übersicht',
+      subtitle: 'Vergleichsdatenblatt aller 28 MPPT-Modelle (75/10 bis 250/100)',
+      version: 'Modellübersicht DE',
+      date: 'Victron Energy B.V.',
+      fileUrl: '/assets/aistudio/Victron_Datasheet-BlueSolar-and-SmartSolar-overview-DE_23f86d52.pdf',
+      isLocalAsset: true,
+      category: 'mppt',
+      badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+      description: 'Hersteller-Vergleichsmatrix aller Victron MPPT-Laderegler von 75V bis 250V Voc. Listet COM-Anschlüsse (VE.Direct, VE.Can), integriertes Bluetooth, programmierbare Relais, Lastausgänge (15A/20A), MC4- vs. TR-Schraubklemmen und die passende MPPT WireBox-Größe (S, M, L, XL) für jedes Modell auf.',
+      tags: [
+        { label: 'Modellreihen', value: '75/10 bis 250/100' },
+        { label: 'Bus-Optionen', value: 'VE.Direct & VE.Can' },
+        { label: 'Lastausgang', value: 'Physisch (bis 20A) & Virtuell' },
+        { label: 'WireBox-Größen', value: 'S, M, L, XL' },
+        { label: 'Sensorik', value: 'Smart Battery Sense' },
+        { label: 'Zubehör', value: 'MPPT Control, GX, USB' }
+      ]
+    },
+    {
+      id: 'manual-victron-vrm',
+      title: 'Victron VRM Portal Handbuch',
+      subtitle: 'Victron Remote Monitoring: Fernüberwachung, 2FA, ESS-Steuerung, Alarme & VEConfigure',
+      version: 'Re 04 - 04/2025 (96 S.)',
+      date: 'Victron Energy B.V.',
+      fileUrl: '/assets/aistudio/VRM_Portal_manual-pdf-de_ca1adcdc.pdf',
+      isLocalAsset: true,
+      category: 'vrm',
+      badgeColor: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+      description: 'Umfassendes 96-seitiges Handbuch zum Victron Remote Monitoring (VRM). Erklärt Echtzeit-Aktualisierungen (2-Sekunden-Intervall), Remote VEConfigure zum Auslesen und Schreiben von RVSC-Konfigurationsdateien, automatische und benutzerdefinierte Alarmüberwachung mit Hysterese-Regeln, ESS-Steuerung (BatteryLife, Mindest-SoC), benutzerdefinierte Widgets mit bis zu 6 Parametern und den kompletten VRM-Fehlercodekatalog (1403–1520, RTT>200).',
+      tags: [
+        { label: 'Echtzeitdaten', value: '2-Sekunden-Intervall' },
+        { label: 'Remote VEConfigure', value: 'RVSC-Dateien via VRM' },
+        { label: 'ESS-Steuerung', value: 'Optimized BatteryLife & SoC' },
+        { label: 'Alarme & Hysterese', value: 'Parametrierbar' },
+        { label: 'Fehlercodes', value: 'VRM Error 1403 bis 1520' },
+        { label: 'Datenaufbewahrung', value: 'Bis zu 5 Jahre' }
       ]
     }
   ]);
@@ -433,11 +497,15 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
     m.description.toLowerCase().includes(search.toLowerCase())
   );
 
+  const [manualCategoryFilter, setManualCategoryFilter] = useState<'all' | 'mppt' | 'meter' | 'battery' | 'inverter' | 'gateway' | 'vrm'>('all');
+
   const filteredManuals = manuals.filter(m => {
     const matchesSearch = m.title.toLowerCase().includes(search.toLowerCase()) ||
       m.subtitle.toLowerCase().includes(search.toLowerCase()) ||
-      m.description.toLowerCase().includes(search.toLowerCase());
-    return matchesSearch;
+      m.description.toLowerCase().includes(search.toLowerCase()) ||
+      m.tags.some(t => t.label.toLowerCase().includes(search.toLowerCase()) || t.value.toLowerCase().includes(search.toLowerCase()));
+    const matchesCategory = manualCategoryFilter === 'all' || m.category === manualCategoryFilter;
+    return matchesSearch && matchesCategory;
   });
 
   const selectedPlan = wiringPlans.find(p => p.id === selectedWiringPlanId) || wiringPlans[0];
@@ -732,6 +800,31 @@ export const AuditAndMaintenance: React.FC<AuditAndMaintenanceProps> = ({
                 <span className="text-xs font-mono-code text-slate-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
                   {filteredManuals.length} Dokumente verfügbar
                 </span>
+              </div>
+
+              {/* Category Filter Pills for Manuals */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1 pb-1">
+                {[
+                  { id: 'all', label: `Alle (${manuals.length})` },
+                  { id: 'mppt', label: `Victron MPPT (${manuals.filter(m => m.category === 'mppt').length})` },
+                  { id: 'vrm', label: `Victron VRM (${manuals.filter(m => m.category === 'vrm').length})` },
+                  { id: 'meter', label: `Shelly Smartmeter (${manuals.filter(m => m.category === 'meter').length})` },
+                  { id: 'battery', label: `LiFePO4 Akku (${manuals.filter(m => m.category === 'battery').length})` },
+                  { id: 'inverter', label: `Lumentree (${manuals.filter(m => m.category === 'inverter').length})` },
+                  { id: 'gateway', label: `T2SG Gateway (${manuals.filter(m => m.category === 'gateway').length})` },
+                ].map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => setManualCategoryFilter(c.id as any)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-mono-code transition-all ${
+                      manualCategoryFilter === c.id
+                        ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold shadow-sm'
+                        : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -235,7 +235,7 @@ export const SystemReportGenerator: React.FC<SystemReportGeneratorProps> = ({
         { label: '3-Phasen-Wandlersaldierung', passed: true, value: `${safeGridFrequency.toFixed(2)} Hz · Summe: ${safeGridTotal} W` }
       ],
       recommendation: 'Reguläre Zählerdrift-Kalibrierung alle 6 Monate durchführen. Phasenrichtigen Sitz der Stromwandler L1/L2/L3 sicherstellen.',
-      manualRef: 'Shelly Pro 3EM User Guide Rev 2.1 (Abschnitt 4: Gen2 RPC & WebSocket Handshake)'
+      manualRef: 'Shelly Pro 3EM Hersteller-Technikbuch (Modell SPEM-003CEBEU, Abschnitte 2, 5 & 11)'
     },
     {
       id: 'hoymiles-ahoy',

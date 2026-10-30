@@ -4,11 +4,95 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <script>
-      // Suppress Vite HMR WebSocket connection errors in sandbox environments where HMR is disabled
+      // 1. Intercept Vite HMR WebSocket in sandbox environments where HMR is disabled
+      (function() {
+        var OriginalWebSocket = window.WebSocket;
+        if (!OriginalWebSocket) return;
+
+        function MockHmrSocket(url) {
+          var self = this;
+          this.url = url;
+          this.readyState = 1; // WebSocket.OPEN
+          this.protocol = 'vite-hmr';
+          this.extensions = '';
+          this.bufferedAmount = 0;
+          this.binaryType = 'blob';
+          var listeners = {};
+
+          this.send = function() {};
+          this.close = function() {
+            self.readyState = 3;
+            self.dispatchEvent(new Event('close'));
+          };
+
+          this.addEventListener = function(type, listener, opts) {
+            if (!listeners[type]) listeners[type] = [];
+            listeners[type].push({ fn: listener, once: opts && opts.once });
+            if (type === 'open') {
+              setTimeout(function() {
+                self.dispatchEvent(new Event('open'));
+              }, 0);
+            }
+          };
+
+          this.removeEventListener = function(type, listener) {
+            if (!listeners[type]) return;
+            listeners[type] = listeners[type].filter(function(l) { return l.fn !== listener; });
+          };
+
+          this.dispatchEvent = function(event) {
+            var type = event.type;
+            var list = (listeners[type] || []).slice();
+            for (var i = 0; i < list.length; i++) {
+              try {
+                list[i].fn.call(self, event);
+              } catch (e) {}
+              if (list[i].once) {
+                self.removeEventListener(type, list[i].fn);
+              }
+            }
+            if (typeof self['on' + type] === 'function') {
+              try {
+                self['on' + type].call(self, event);
+              } catch (e) {}
+            }
+            return true;
+          };
+
+          setTimeout(function() {
+            self.dispatchEvent(new Event('open'));
+          }, 0);
+        }
+
+        window.WebSocket = function(url, protocols) {
+          var isViteHmr = false;
+          if (protocols === 'vite-hmr' || (Array.isArray(protocols) && protocols.indexOf('vite-hmr') !== -1)) {
+            isViteHmr = true;
+          }
+          if (typeof url === 'string' && (url.indexOf('vite-hmr') !== -1 || url.indexOf('token=') !== -1)) {
+            isViteHmr = true;
+          }
+
+          if (isViteHmr) {
+            return new MockHmrSocket(url);
+          }
+
+          var args = Array.prototype.slice.call(arguments);
+          return new (Function.prototype.bind.apply(OriginalWebSocket, [null].concat(args)))();
+        };
+
+        window.WebSocket.CONNECTING = 0;
+        window.WebSocket.OPEN = 1;
+        window.WebSocket.CLOSING = 2;
+        window.WebSocket.CLOSED = 3;
+        window.WebSocket.prototype = OriginalWebSocket.prototype;
+      })();
+
+      // 2. Global error handlers to prevent unhandled rejection notifications for WebSocket in iFrame
       window.addEventListener('error', function(event) {
         var msg = '' + (event.message || '');
         var file = '' + (event.filename || '');
-        if (msg.includes('WebSocket') || msg.includes('ws://') || msg.includes('wss://') || file.includes('@vite/client')) {
+        if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('ws://') !== -1 || msg.indexOf('wss://') !== -1 || file.indexOf('@vite/client') !== -1) {
           event.stopImmediatePropagation();
           event.preventDefault();
           return true;
@@ -16,7 +100,7 @@
       }, true);
       window.addEventListener('unhandledrejection', function(event) {
         var reasonStr = '' + (event.reason ? (event.reason.message || event.reason.stack || event.reason) : '');
-        if (reasonStr.includes('WebSocket') || reasonStr.includes('@vite/client')) {
+        if (reasonStr.indexOf('WebSocket') !== -1 || reasonStr.indexOf('@vite/client') !== -1) {
           event.stopImmediatePropagation();
           event.preventDefault();
         }

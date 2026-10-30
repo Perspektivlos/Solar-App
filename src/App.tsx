@@ -429,50 +429,52 @@ export default function App() {
         onOpenMqttConfig={() => setMqttSettingsModalOpen(true)}
       />
 
-      {/* Live-Telemetrie Statusleiste: MQTT-First mit automatischem HTTP-REST Fallback */}
-      <div className={`border-b px-4 py-2 text-xs flex flex-wrap items-center justify-between gap-2 transition-all ${
-        backendInfo.telemetrySource === 'mqtt'
-          ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200'
-          : backendInfo.telemetrySource === 'http_rest'
-          ? 'bg-amber-950/40 border-amber-500/30 text-amber-200'
-          : 'bg-sky-950/40 border-sky-500/20 text-sky-200'
-      }`}>
-        <div className="flex items-center gap-2">
-          <Radio className={`w-4 h-4 shrink-0 ${backendInfo.telemetrySource === 'mqtt' ? 'text-emerald-400 animate-pulse' : backendInfo.telemetrySource === 'http_rest' ? 'text-amber-400' : 'text-sky-400'}`} />
-          <span>
-            {backendInfo.telemetrySource === 'mqtt' ? (
-              <>
-                <strong className="text-emerald-300">Live-Daten via MQTT:</strong> Verbunden mit Mosquitto Broker auf <code>{backendInfo.mqttStatus?.brokerUrl || '192.168.0.201:1883'}</code> (Push-Events aktiv).
-              </>
-            ) : backendInfo.telemetrySource === 'http_rest' ? (
-              <>
-                <strong className="text-amber-300">HTTP-REST Fallback aktiv:</strong> MQTT-Broker offline oder still – Hub pollt Einzelgeräte direkt (Shelly, Ahoy, Trucki, Venus OS).
-              </>
-            ) : (
-              <>
-                <strong>Reiner Live-Modus aktiv:</strong> Keine künstliche Simulation. Im Proxmox-LXC (192.168.0.220) empfängt dieser Hub echte Live-Werte via MQTT (LXC 201) mit HTTP-Fallback.
-              </>
-            )}
-          </span>
-        </div>
+      {/* Live-Telemetrie Statusleiste: Nur auf der Seite MQTT & APIs einblenden */}
+      {activeTab === 'mqtt-api' && (
+        <div className={`border-b px-4 py-2 text-xs flex flex-wrap items-center justify-between gap-2 transition-all ${
+          backendInfo.telemetrySource === 'mqtt'
+            ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200'
+            : backendInfo.telemetrySource === 'http_rest'
+            ? 'bg-amber-950/40 border-amber-500/30 text-amber-200'
+            : 'bg-sky-950/40 border-sky-500/20 text-sky-200'
+        }`}>
+          <div className="flex items-center gap-2">
+            <Radio className={`w-4 h-4 shrink-0 ${backendInfo.telemetrySource === 'mqtt' ? 'text-emerald-400 animate-pulse' : backendInfo.telemetrySource === 'http_rest' ? 'text-amber-400' : 'text-sky-400'}`} />
+            <span>
+              {backendInfo.telemetrySource === 'mqtt' ? (
+                <>
+                  <strong className="text-emerald-300">Live-Daten via MQTT:</strong> Verbunden mit Mosquitto Broker auf <code>{backendInfo.mqttStatus?.brokerUrl || '192.168.0.201:1883'}</code> (Push-Events aktiv).
+                </>
+              ) : backendInfo.telemetrySource === 'http_rest' ? (
+                <>
+                  <strong className="text-amber-300">HTTP-REST Fallback aktiv:</strong> MQTT-Broker offline oder still – Hub pollt Einzelgeräte direkt (Shelly, Ahoy, Trucki, Venus OS).
+                </>
+              ) : (
+                <>
+                  <strong>Reiner Live-Modus aktiv:</strong> Keine künstliche Simulation. Im Proxmox-LXC (192.168.0.220) empfängt dieser Hub echte Live-Werte via MQTT (LXC 201) mit HTTP-Fallback.
+                </>
+              )}
+            </span>
+          </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => setMqttSettingsModalOpen(true)}
-            className="px-2.5 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-mono text-[11px] transition-all flex items-center gap-1.5"
-            title="Mosquitto Broker Port 1883, Benutzer, Passwort und Topics konfigurieren"
-          >
-            <span>MQTT-Broker (1883)</span>
-          </button>
-          <button
-            onClick={() => setHardwareConfigModalOpen(true)}
-            className="px-2.5 py-1 rounded bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 font-mono text-[11px] transition-all flex items-center gap-1.5"
-            title="Hardware-IPs für HTTP-REST Fallback anpassen"
-          >
-            <span>HTTP-Schnittstellen</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setMqttSettingsModalOpen(true)}
+              className="px-2.5 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-mono text-[11px] transition-all flex items-center gap-1.5"
+              title="Mosquitto Broker Port 1883, Benutzer, Passwort und Topics konfigurieren"
+            >
+              <span>MQTT-Broker (1883)</span>
+            </button>
+            <button
+              onClick={() => setHardwareConfigModalOpen(true)}
+              className="px-2.5 py-1 rounded bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 font-mono text-[11px] transition-all flex items-center gap-1.5"
+              title="Hardware-IPs für HTTP-REST Fallback anpassen"
+            >
+              <span>HTTP-Schnittstellen</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Ambient Wall-Mount Kiosk Alert Banner if WakeLock is active */}
       {deviceInfo.wakeLockActive && (

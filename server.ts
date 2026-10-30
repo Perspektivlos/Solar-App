@@ -14,6 +14,14 @@ const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
+// Prevent any unhandled network errors or background exceptions from terminating dev server process
+process.on('uncaughtException', (err) => {
+  console.error('[!] Caught unhandled exception in background thread:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[!] Caught unhandled rejection in background thread:', reason);
+});
+
 app.use(express.json());
 
 // Echtdaten gelten als frisch, wenn sie juenger als STALE_MS sind
@@ -1012,15 +1020,21 @@ app.post('/api/system/network/ping', async (req, res) => {
 // 2. Health & Host Status: echte TCP-Pruefung, keine Zufallswerte
 function tcpProbe(host: string, port: number, timeoutMs = 800): Promise<number | null> {
   return new Promise((resolve) => {
+    let finished = false;
     const start = Date.now();
     const sock = net.connect({ host, port });
     const done = (ok: boolean) => {
-      sock.destroy();
+      if (finished) return;
+      finished = true;
+      try {
+        sock.destroy();
+      } catch {}
       resolve(ok ? Date.now() - start : null);
     };
     sock.setTimeout(timeoutMs, () => done(false));
-    sock.once('connect', () => done(true));
-    sock.once('error', () => done(false));
+    sock.on('connect', () => done(true));
+    sock.on('error', () => done(false));
+    sock.on('close', () => done(false));
   });
 }
 

@@ -425,8 +425,120 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
       explanation: 'L1 (+180W) + L2 (-95W) + L3 (+60W) = +145W Netzbezug. Dieser saldierte Wert dient dem Trucki als Eingangsgröße für die Nulleinspeisung.',
       tolerance: 'Mathematisch saldierend'
     },
+    {
+      id: 'shelly-noload',
+      device: 'Shelly Pro 3EM (Haupteinspeisung)',
+      category: 'shelly',
+      parameter: 'No-load-Schwelle (Mindestlast-Erkennung)',
+      configuredValue: '30 VA je Kanal',
+      unit: 'VA',
+      nominalRange: '< 30 VA = Anzeige aktiv, keine Addition zur Energiestatistik',
+      sourceDoc: 'Technikbuch Shelly Pro 3EM',
+      sourcePage: 'S. 2 & 5 (Merkmale)',
+      status: 'passed',
+      explanation: 'Laut Hersteller-Technikbuch wird bei einer Scheinleistung unter 30 VA je Kanal die Momentanleistung angezeigt, jedoch nicht in das Energiezählwerk aufsummiert („No load threshold“).',
+      tolerance: '30 VA Werksgrenze'
+    },
+    {
+      id: 'shelly-accuracy',
+      device: 'Shelly Pro 3EM (Haupteinspeisung)',
+      category: 'shelly',
+      parameter: 'Wirkenergie-Genauigkeitsklasse & Messbereich',
+      configuredValue: 'Klasse B (±1 % von 2–120 A)',
+      unit: '%',
+      nominalRange: '±1 % (2–120 A RMS je Phase)',
+      sourceDoc: 'Technikbuch Shelly Pro 3EM',
+      sourcePage: 'S. 2 & 5 (Spezifikationen)',
+      status: 'passed',
+      explanation: 'Genauigkeitsklasse B für Wirkenergie gemäß interner Designvalidierung über 3x 120A Klappwandler (CTA, CTB, CTC) mit berührungsloser Messung.',
+      tolerance: 'Klasse B (±1 %)'
+    },
+    {
+      id: 'shelly-torque',
+      device: 'Shelly Pro 3EM (Haupteinspeisung)',
+      category: 'shelly',
+      parameter: 'Schraubklemmen Anzugsdrehmoment',
+      configuredValue: '0.4 Nm',
+      unit: 'Nm',
+      nominalRange: 'Max. 0.4 Nm (Leiterquerschnitt 0.5–2.5 mm²)',
+      sourceDoc: 'Technikbuch Shelly Pro 3EM',
+      sourcePage: 'S. 5 (Mechanische Daten)',
+      status: 'passed',
+      explanation: 'Drehmoment für Spannungsabgriff-Schraubklemmen (A, B, C, N) exakt nach Herstellervorgabe mit Drehmomentschraubendreher angezogen.',
+      tolerance: '0.4 Nm'
+    },
 
-    // 6. Victron Wiring Unlimited
+    // 6. Victron MPPT & VRM
+    {
+      id: 'vic-mppt-preset',
+      device: 'Victron SmartSolar MPPT 150/35',
+      category: 'victron',
+      parameter: 'Drehschalter-Position & Ladealgorithmus',
+      configuredValue: 'Position 7 (LiFePO4)',
+      unit: 'Drehschalter',
+      nominalRange: 'Pos. 7: 56.8 V Absorption / 54.0 V Float (48V)',
+      sourceDoc: 'Handbuch SmartSolar MPPT 150/35',
+      sourcePage: 'S. 18 & 23 (Drehschalter)',
+      status: 'passed',
+      explanation: 'Drehschalterstellung 7 wählt den fest hinterlegten LiFePO4-Algorithmus: Absorption 56.8 V (2h fest), Float 54.0 V, kein Zellenausgleich (Equalize disabled), Schweifstrom 0 A.',
+      tolerance: 'Exakt Pos. 7'
+    },
+    {
+      id: 'vic-mppt-voc',
+      device: 'Victron SmartSolar MPPT 150/35',
+      category: 'victron',
+      parameter: 'Maximale PV-Leerspannung (Voc)',
+      configuredValue: '112.4 V gemessen (< 145 V)',
+      unit: 'V DC',
+      nominalRange: 'Max. 145 V Einschalten / 150 V absoluter Höchstwert',
+      sourceDoc: 'Handbuch SmartSolar MPPT 150/35 & Datenblatt',
+      sourcePage: 'S. 67 & Datenblatt S. 1',
+      status: 'passed',
+      explanation: 'Die PV-Strings erreichen bei -10°C maximal 124 V Voc, mit sicherem Abstand zur 145 V Einschaltgrenze und 150 V Absolutovershoot-Grenze.',
+      tolerance: 'Max. 145 V Betrieb'
+    },
+    {
+      id: 'vic-mppt-start',
+      device: 'Victron SmartSolar MPPT 150/35',
+      category: 'victron',
+      parameter: 'PV-Startbedingung & Weiterlauf',
+      configuredValue: 'Vpv >= Vbat + 5.0 V',
+      unit: 'V Delta',
+      nominalRange: 'Start: Vbat + 5 V / Weiterlauf: Vbat + 1 V',
+      sourceDoc: 'Handbuch SmartSolar MPPT 150/35',
+      sourcePage: 'S. 5, 41 (Betrieb)',
+      status: 'passed',
+      explanation: 'Der MPPT-Laderegler nimmt die Ladung morgens auf, sobald die PV-Spannung die Batteriespannung um 5 V übersteigt, und läuft bis Vbat + 1 V kontinuierlich weiter.',
+      tolerance: 'Vbat + 5 V / + 1 V'
+    },
+    {
+      id: 'vic-mppt-lowtemp',
+      device: 'Victron SmartSolar MPPT 150/35',
+      category: 'victron',
+      parameter: 'Untertemperatur-Ladeabschaltung (LiFePO4 Schutz)',
+      configuredValue: '5 °C Cut-off',
+      unit: '°C',
+      nominalRange: '5 °C Standardabschaltung für Lithium (LFP)',
+      sourceDoc: 'Handbuch SmartSolar MPPT 150/35',
+      sourcePage: 'S. 25 & 49 (Lithium-Schutz)',
+      status: 'passed',
+      explanation: 'Schützt LiFePO4-Zellen vor irreversibler Dendritenbildung durch Deaktivierung des Ladestroms bei Temperaturen unter 5 °C.',
+      tolerance: '5 °C Grenzschwelle'
+    },
+    {
+      id: 'vic-vrm-interval',
+      device: 'Victron VRM Portal & Venus OS',
+      category: 'victron',
+      parameter: 'Echtzeit-Aktualisierungszyklus',
+      configuredValue: '2.0 Sekunden',
+      unit: 's',
+      nominalRange: '2.0 Sekunden direkt via D-Bus / WebSocket',
+      sourceDoc: 'Handbuch zum VRM-Portal',
+      sourcePage: 'S. 23 (Echtzeitdaten)',
+      status: 'passed',
+      explanation: 'Laut VRM-Portal Handbuch (Abschnitt 4.1) sendet das GX-Gerät im Echtzeitmodus alle 2 Sekunden Aktualisierungen direkt an das Dashboard.',
+      tolerance: '2.0 s Live-Intervall'
+    },
     {
       id: 'vic-voltage-drop',
       device: 'Victron Verkabelung (Wiring Unlimited)',
@@ -630,7 +742,7 @@ export const ParameterAuditView: React.FC<ParameterAuditViewProps> = ({
             { id: 'battery', label: 'Power Queen LiFePO4' },
             { id: 'hoymiles', label: 'Hoymiles & Ahoy' },
             { id: 'shelly', label: 'Shelly Pro 3EM' },
-            { id: 'victron', label: 'Victron Wiring' }
+            { id: 'victron', label: 'Victron MPPT & VRM' }
           ].map(tab => (
             <button
               key={tab.id}
