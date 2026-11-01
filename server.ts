@@ -12,7 +12,15 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = http.createServer(app);
-const PORT = process.env.PORT || 3000;
+function getPort(): number {
+  const portArgIndex = process.argv.indexOf('--port');
+  if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
+    const p = parseInt(process.argv[portArgIndex + 1], 10);
+    if (!isNaN(p)) return p;
+  }
+  return 3000;
+}
+const PORT = getPort();
 
 // Prevent any unhandled network errors or background exceptions from terminating dev server process
 process.on('uncaughtException', (err) => {
